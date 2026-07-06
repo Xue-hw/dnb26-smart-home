@@ -1,0 +1,10 @@
+fastapi>=0.116
+uvicorn[standard]>=0.35
+pydantic>=2.11
+sqlmodel>=0.0.24
+ultralytics>=8.3
+opencv-python-headless>=4.10
+numpy>=2.0
+python-multipart>=0.0.20
+pytest>=8.4
+httpx>=0.28
