@@ -44,11 +44,24 @@ models/                  Local model weights, ignored by git
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\activate
-pip install -r requirements.txt
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 python -m backend.app
 ```
 
 The default API server runs at `http://127.0.0.1:8000`.
+
+## YOLO11n Scripts
+
+```powershell
+python scripts/check_environment.py
+python scripts/download_yolo11n.py
+python scripts/detect_image.py path\to\image.jpg --classes person,car
+python scripts/detect_camera.py --camera 0 --classes person
+python scripts/export_yolo11n_onnx.py
+```
+
+Use `models/yolo11n.pt` as the default weight file. Keep later optimized ONNX,
+OM, TensorRT, or quantized exports under `models/` as local artifacts.
 
 ## Runtime Data Policy
 
