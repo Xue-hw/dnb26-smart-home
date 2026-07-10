@@ -1,0 +1,13 @@
+image,label,confidence,x1,y1,x2,y2
+drone__drone_01_2CR_Drone_build_9245310_.jpg,drone,0.5877,1105.7,971.81,5349.98,4480.0
+drone__drone_02_2CR_drone_build_9245311_.jpg,drone,0.5297,1811.13,1850.42,5034.26,4480.0
+drone__drone_03_2CR_drone_build_9245312_.jpg,drone,0.5317,0.0,348.99,1024.82,1280.0
+drone__drone_04_2CR_drone_build_9245315_.jpg,drone,0.558,0.0,212.46,1137.51,1199.34
+fire_extinguisher__fire_extinguisher_loremflickr_01.jpg,fire_extinguisher,0.4886,589.13,96.59,922.53,800.0
+fire_extinguisher__fire_extinguisher_loremflickr_03.jpg,fire_extinguisher,0.5531,895.28,607.8,995.42,800.0
+fire_extinguisher__fire_extinguisher_loremflickr_05.jpg,,,,,,
+fire_extinguisher__fire_extinguisher_loremflickr_07.jpg,fire_extinguisher,0.7466,834.48,30.52,1060.36,588.35
+fire_extinguisher__fire_extinguisher_loremflickr_07.jpg,fire_extinguisher,0.5417,391.26,25.02,584.92,585.81
+fire_extinguisher__fire_extinguisher_loremflickr_08.jpg,,,,,,
+fire_extinguisher__fire_extinguisher_loremflickr_09.jpg,fire_extinguisher,0.8921,873.59,356.91,1042.22,673.74
+fire_extinguisher__fire_extinguisher_loremflickr_10.jpg,fire_extinguisher,0.687,667.74,6.75,978.36,720.89

@@ -48,8 +48,9 @@ def main() -> None:
             if not args.no_window:
                 for detection in detections:
                     x1, y1, x2, y2 = detection.bbox_xyxy
+                    label = f"{detection.label} {detection.confidence:.2f}"
                     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 180, 0), 2)
-                    cv2.putText(frame, detection.label, (x1, max(20, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 180, 0), 2)
+                    cv2.putText(frame, label, (x1, max(20, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 180, 0), 2)
                 cv2.imshow("DnB26 YOLO11n", frame)
                 if cv2.waitKey(1) == 27:
                     break
