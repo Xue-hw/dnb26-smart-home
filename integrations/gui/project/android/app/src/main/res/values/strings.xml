@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DnB26 智慧家</string>
+    <string name="title_activity_main">DnB26 智慧家</string>
+    <string name="package_name">com.dnb26.smarthome</string>
+    <string name="custom_url_scheme">com.dnb26.smarthome</string>
+</resources>
