@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { dataMode, dataSource } from '@/services';
-import type { DashboardSnapshot, DeviceCommand, DeviceCommandInput, SmartHomeDataSource, SystemStatus } from '@/types/contracts';
+import type { DashboardSnapshot, DeviceCommand, DeviceCommandInput, ServerClock, SmartHomeDataSource, SystemStatus } from '@/types/contracts';
 import { errorMessage } from '@/utils';
 
 interface AppDataValue {
@@ -8,6 +8,7 @@ interface AppDataValue {
   mode: typeof dataMode;
   status: SystemStatus | null;
   snapshot: DashboardSnapshot | null;
+  serverClock: ServerClock | null;
   loading: boolean;
   error: string;
   connectionError: string;
@@ -22,6 +23,7 @@ const AppDataContext = createContext<AppDataValue | null>(null);
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [serverClock, setServerClock] = useState<ServerClock | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [connectionError, setConnectionError] = useState('');
@@ -40,6 +42,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (sequence !== refreshSequence.current) return;
       setConnectionError('');
       setLastSuccess(Date.now());
+      const serverTimestamp = Date.parse(nextStatus.server_time);
+      if (Number.isFinite(serverTimestamp)) setServerClock({ timestamp: serverTimestamp, receivedAt: performance.now(), browserOffset: serverTimestamp - Date.now() });
       setStatus(nextStatus);
       setSnapshot(nextSnapshot);
     } catch (reason) {
@@ -76,6 +80,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       await refresh();
       return command;
     } catch (reason) {
+      if ('pin' in input.params) {
+        const safeMessage = '修改设备 PIN 失败，请检查权限、连接和控制器回执。';
+        setError(safeMessage);
+        throw new Error(safeMessage);
+      }
       setError(errorMessage(reason));
       throw reason;
     } finally {
@@ -85,9 +94,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const value = useMemo<AppDataValue>(() => ({
-    source: dataSource, mode: dataMode, status, snapshot, loading, error, connectionError, lastSuccess,
+    source: dataSource, mode: dataMode, status, snapshot, serverClock, loading, error, connectionError, lastSuccess,
     pendingCommands, refresh, sendCommand,
-  }), [status, snapshot, loading, error, connectionError, lastSuccess, pendingCommands, refresh, sendCommand]);
+  }), [status, snapshot, serverClock, loading, error, connectionError, lastSuccess, pendingCommands, refresh, sendCommand]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

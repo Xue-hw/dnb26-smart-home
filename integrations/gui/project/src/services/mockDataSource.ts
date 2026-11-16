@@ -429,6 +429,13 @@ export class MockDataSource implements SmartHomeDataSource {
     return { count };
   }
 
+  async getLiveVision(): Promise<import('@/types/contracts').LiveVision> { return { frame_id: 0, captured_at: null, objects: [], faces: [], width: 640, height: 480, camera_status: 'unknown', message: '演示模式没有真实摄像头与活体结果' }; }
+  async getAlerts(): Promise<{ items: import('@/types/contracts').SystemAlert[] }> { return { items: [] }; }
+  async acknowledgeAlert(_id: string) { return { id: _id, acknowledged: true }; }
+  async getModels() { return { items: [{ name: '演示模型（非推理）', status: 'mock', classes: [] as string[] }] }; }
+  async getSettings() { return { temperature_on: 30, temperature_off: 28, door_open_seconds: 30, bulb_linkage: false, retention_days: 7 }; }
+  async updateSettings(settings: Partial<import('@/types/contracts').RuntimeSettings>) { return { ...await this.getSettings(), ...settings }; }
+  async getAuthStatus() { return { write_access: true, authentication_required: false }; }
   subscribeEvents(callback: Listener): () => void {
     listeners.add(callback);
     return () => listeners.delete(callback);

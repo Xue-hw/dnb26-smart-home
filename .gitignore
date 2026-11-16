@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .venv/
+.venv-*/
 venv/
 
 # Runtime data and private assets
@@ -34,3 +35,14 @@ Thumbs.db
 logs/
 runs/
 tmp/
+
+# Integration build artifacts and deployment secrets
+output/
+*.tar.gz
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+deploy/local/
+.playwright-cli/

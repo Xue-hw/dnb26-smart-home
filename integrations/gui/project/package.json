@@ -1,6 +1,6 @@
 {
   "name": "dnb26-smart-home-gui",
-  "version": "1.2.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "description": "DnB26 智能家居控制系统纯前端 GUI，含 Mock 数据库、接口演示与真实 HTTP 接口预留。",
@@ -10,7 +10,7 @@
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "node tests/integration.cjs && node tests/pwa.cjs",
+    "test": "node tests/integration.cjs && node tests/pwa.cjs && node tests/system.cjs",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android"
   },
@@ -21,12 +21,13 @@
     "@capacitor/android": "^7.6.10",
     "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.6.10",
-    "echarts": "~5.6.0",
+    "echarts": "^6.1.0",
     "echarts-for-react": "~3.0.2",
     "lucide-react": "0.577.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.2"
+    "react-router-dom": "^7.13.2",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.10",
@@ -34,6 +35,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^5.1.4",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.4",
@@ -44,5 +46,10 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.14"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.8"
+    }
   }
 }

@@ -1,3 +1,5 @@
+import { LiveMonitor } from '@/components/LiveMonitor';
+import { faceAccessLabel } from '@/services/facePolicy';
 import { useEffect, useRef, useState } from 'react';
 import { Camera, CheckCircle2, FileImage, Image as ImageIcon, LoaderCircle, Play, ScanFace, ScanSearch, ShieldAlert, Upload, Video } from 'lucide-react';
 import { DemoNotice, EmptyState, ErrorState, PageHeader, Panel, StatusBadge } from '@/components/Common';
@@ -19,9 +21,9 @@ function loadImage(url: string) {
 
 export default function MonitorPage() {
   const { source, mode } = useAppData();
-  const [tab, setTab] = useState<SourceTab>('demo');
-  const [imageUrl, setImageUrl] = useState('/demo/smart-home-scene.svg');
-  const [fileName, setFileName] = useState('smart-home-scene.svg');
+  const [tab, setTab] = useState<SourceTab>(mode === 'mock' ? 'demo' : 'upload');
+  const [imageUrl, setImageUrl] = useState(mode === 'mock' ? '/demo/smart-home-scene.svg' : '');
+  const [fileName, setFileName] = useState(mode === 'mock' ? 'smart-home-scene.svg' : '');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [detections, setDetections] = useState<Detection[]>([]);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
@@ -149,10 +151,12 @@ export default function MonitorPage() {
     <DemoNotice>物体识别返回的是与预置场景对应的固定结果，用于测试接口和检测框，不代表上传图片的真实内容。人脸识别仅测试请求与响应，不比对特征、不触发门禁。</DemoNotice>
     {error && <ErrorState message={error} />}
 
+    <LiveMonitor />
+    <div style={{ height: 20 }} />
     <Panel title="物体识别" description="选择图片来源，查看目标类别、位置与置信度。" icon={<ScanSearch size={18} />}>
-      <div className="source-tabs" role="tablist"><button className={tab === 'demo' ? 'source-tab active' : 'source-tab'} disabled={detecting || cameraLoading} onClick={() => selectTab('demo')}><ImageIcon size={15} />预置场景</button><button className={tab === 'upload' ? 'source-tab active' : 'source-tab'} disabled={detecting || cameraLoading} onClick={() => selectTab('upload')}><Upload size={15} />上传图片</button><button className={tab === 'camera' ? 'source-tab active' : 'source-tab'} disabled={detecting || cameraLoading} onClick={() => selectTab('camera')}><Video size={15} />摄像头照片</button></div>
+      <div className="source-tabs" role="tablist">{mode === 'mock' && <button className={tab === 'demo' ? 'source-tab active' : 'source-tab'} disabled={detecting || cameraLoading} onClick={() => selectTab('demo')}><ImageIcon size={15} />预置场景</button>}<button className={tab === 'upload' ? 'source-tab active' : 'source-tab'} disabled={detecting || cameraLoading} onClick={() => selectTab('upload')}><Upload size={15} />上传图片</button><button className={tab === 'camera' ? 'source-tab active' : 'source-tab'} disabled={detecting || cameraLoading} onClick={() => selectTab('camera')}><Video size={15} />摄像头照片</button></div>
       <div className="monitor-grid"><div>
-        <div className="upload-zone"><div><p>{tab === 'demo' ? '本地 960 × 540 演示场景' : tab === 'upload' ? '选择需要识别的图片' : '获取摄像头最新照片'}</p><small>{fileName || 'PNG / JPG / SVG，最大 8 MB'}</small></div><div className="upload-actions">{tab === 'upload' && <><input ref={uploadRef} hidden type="file" accept="image/*" onChange={(event) => chooseImage(event.target.files?.[0])} /><button className="button secondary small" disabled={detecting} onClick={() => uploadRef.current?.click()}><FileImage size={14} />选择图片</button></>}{tab === 'camera' && <button className="button secondary small" disabled={cameraLoading || detecting} onClick={() => void loadCamera()}><Camera size={14} />重新抓帧</button>}<button className="button small" disabled={detecting || cameraLoading || !imageUrl} onClick={() => void runDetection()}>{detecting ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />}{detecting ? '正在识别…' : '开始识别'}</button></div></div>
+        <div className="upload-zone"><div><p>{tab === 'demo' ? '本地 960 × 540 演示场景' : tab === 'upload' ? '选择需要识别的图片' : '获取摄像头最新照片'}</p><small>{fileName || 'PNG / JPG / WebP，最大 8 MB'}</small></div><div className="upload-actions">{tab === 'upload' && <><input ref={uploadRef} hidden type="file" accept="image/*" onChange={(event) => chooseImage(event.target.files?.[0])} /><button className="button secondary small" disabled={detecting} onClick={() => uploadRef.current?.click()}><FileImage size={14} />选择图片</button></>}{tab === 'camera' && <button className="button secondary small" disabled={cameraLoading || detecting} onClick={() => void loadCamera()}><Camera size={14} />重新抓帧</button>}<button className="button small" disabled={detecting || cameraLoading || !imageUrl} onClick={() => void runDetection()}>{detecting ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />}{detecting ? '正在识别…' : '开始识别'}</button></div></div>
         <div className="preview-frame">{imageUrl ? <DetectionCanvas imageUrl={imageUrl} detections={detections} /> : <div className="preview-placeholder"><ImageIcon size={44} /><h3>尚未选择图片</h3><p>点击“选择图片”后开始识别</p></div>}{detecting && <div className="preview-overlay"><LoaderCircle className="spin" size={20} />正在识别图片…</div>}</div>
         {tab === 'camera' && <div className="archive-status"><strong>{cameraLoading ? '正在获取照片…' : '照片与归档'}</strong><p>拍摄时间：{formatDateTime(cameraSnapshot?.captured_at)}</p><p>保存状态：{cameraSnapshot?.saved === true ? '后端确认已保存' : cameraSnapshot?.saved === false ? '未保存' : '待接入保存回执'}</p>{cameraMessage && <p>{cameraMessage}</p>}{cameraSnapshot?.saved && cameraSnapshot.archive_url && <a className="button secondary" href={cameraSnapshot.archive_url} target="_blank" rel="noreferrer">查看归档照片</a>}</div>}
       </div><div>
@@ -167,7 +171,7 @@ export default function MonitorPage() {
       <Panel title="人脸与门禁核验" description="分别查看身份核验与门禁执行结果。" icon={<ScanFace size={17} />}>
         <div className="upload-zone"><div><p>{faceFile?.name || '上传一张测试图片'}</p><small>请选择清晰的人脸图片，最大8 MB</small></div><div className="upload-actions"><input ref={faceInputRef} hidden type="file" accept="image/*" onChange={(event) => chooseFace(event.target.files?.[0])} /><button className="button secondary small" disabled={faceLoading} onClick={() => faceInputRef.current?.click()}><Upload size={14} />选择图片</button><button className="button small" disabled={faceLoading || !faceFile} onClick={() => void runFaceVerify()}>{faceLoading ? <LoaderCircle className="spin" size={14} /> : <ScanFace size={14} />}开始核验</button></div></div>
         {facePreview ? <div className="preview-frame"><img src={facePreview} alt="人脸照片预览" />{faceLoading && <div className="preview-overlay"><LoaderCircle className="spin" size={20} />正在核验身份…</div>}</div> : <EmptyState title="未选择人脸图片" description={mode === 'mock' ? '演示模式不会录入人脸。' : '选择照片后提交身份核验。'} />}
-        <div className="verification-result"><StatusBadge tone={!faceResult || faceResult.mode === 'mock' ? 'info' : faceResult.matched ? 'success' : 'warning'}>{!faceResult ? '等待核验' : faceResult.mode === 'mock' ? '模拟服务，未完成真实核验' : faceResult.matched ? '身份核验通过' : '核验未通过'}</StatusBadge>{faceResult && <p>{faceResult.user_name || '未匹配授权人员'} · {faceResult.message}</p>}<div className="inline-warning"><ShieldAlert size={15} />门禁执行：待接入独立设备回执。身份通过不等于门已打开。</div></div>
+        <div className="verification-result"><StatusBadge tone={!faceResult || faceResult.mode === 'mock' ? 'info' : faceResult.matched ? 'success' : 'warning'}>{!faceResult ? '等待核验' : faceResult.mode === 'mock' ? '模拟服务，未完成真实核验' : faceResult.matched ? '身份匹配 · 尚无通行资格' : '核验未通过'}</StatusBadge>{faceResult && <p>{faceResult.user_name || '未匹配授权人员'} · {faceResult.message}</p>}<div className="inline-warning"><ShieldAlert size={15} />{faceResult ? faceAccessLabel(faceResult, 'upload') : '照片仅供身份核对；实时通行请在共享摄像头前完成眨眼。'} 身份通过不等于门已打开。</div></div>
       </Panel>
       <Panel title="最近识别事件" description="最近5条，更多记录可在历史页查询。" icon={<ScanSearch size={17} />}>
         {recent.length ? <div className="event-list">{recent.slice(0, 5).map((event) => <div className="event-item" key={event.event_id}><span className="event-marker" /><div><strong>{event.type === 'object' ? '物体识别' : '人脸核验'} · {event.file_name}</strong><p>{event.result_summary}</p></div><span className="event-time">{formatDateTime(event.occurred_at).slice(5, 16)}</span></div>)}</div> : <EmptyState title="暂无识别事件" description="完成识别后可在这里查看记录。" />}

@@ -1,3 +1,5 @@
+> 当前整合版本为 2.0.0，默认连接真实后端。新增实时识别、系统报警和运行时连接配置，详见 [系统整合说明](docs/SYSTEM_INTEGRATION.md)。历史交付说明保留作为参考。
+
 # DnB26 智慧家 GUI / Android v1.2.0
 
 本工程用于课程智能家居GUI，React＋TypeScript＋Vite＋ECharts，Capacitor 7 封装Android。
@@ -25,4 +27,4 @@
 - docs/V1_1_INTEGRATION.md：A/B/C工作范围和联调约定。
 - docs/GUI_ACCEPTANCE.md：验证记录。
 
-本版仍使用1.2.0 / versionCode120；交接整理没有增加应用功能版本。
+当前整合版为2.1.0 / versionCode210，浅色控制台与3D房屋视图；Web/Capacitor APK共用服务，实体手机按 docs/联调测试表.md 复验。

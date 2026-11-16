@@ -1,6 +1,7 @@
-import type { DataMode, SmartHomeDataSource } from '@/types/contracts';
+import { configuredMode } from './connection';
+import type { SmartHomeDataSource } from '@/types/contracts';
 import { HttpDataSource } from './httpDataSource';
 import { MockDataSource } from './mockDataSource';
 
-export const dataMode: DataMode = import.meta.env.VITE_DATA_MODE === 'http' ? 'http' : 'mock';
+export const dataMode = configuredMode();
 export const dataSource: SmartHomeDataSource = dataMode === 'http' ? new HttpDataSource() : new MockDataSource();

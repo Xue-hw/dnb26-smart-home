@@ -1,0 +1,16 @@
+{
+  "archive": "智能家居.zip",
+  "archive_sha256": "37c42e8dc8c3faa125247477d892659435e7e7d55345e9218ef2ae7fe36c908d",
+  "files": [
+    {
+      "path": "Uno1_Environment_Garage/Uno1_Environment_Garage.ino",
+      "bytes": 22797,
+      "sha256": "56c1b432cd91710ec8d73c6dfbe382f8d5db4088f4ca4de8e5ba6a73e90517df"
+    },
+    {
+      "path": "Uno2_RFID_Door/Uno2_RFID_Door.ino",
+      "bytes": 9302,
+      "sha256": "4b470b8a9c7ff20fe7eafc44182d849083b3a0e0c6bf40b719c9ab2d3a23ec64"
+    }
+  ]
+}

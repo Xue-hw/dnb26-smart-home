@@ -5,6 +5,16 @@ Intelligent Science / IoT side of the project: data management, object
 detection, face access control, GUI display, history queries, and remote control
 APIs for the hardware team.
 
+## 当前整合入口
+
+真实 Web/Android GUI 位于 `integrations/gui/project/`，整合后端位于 `backend/`，保留组员的 MySQL SQL。香橙派使用 `deploy/` 下的离线与用户目录部署脚本；网页与 APK 访问同一服务。CPU 和 Ascend NPU 推理都已提供适配。
+
+运行地址、照片与眨眼门禁规则、Arduino 串口边界、服务管理及部署现状见 [系统整合与运行说明](docs/system-integration.md)。配置项和 API 见 [后端说明](backend/README.md)，GUI 构建见 [GUI 系统说明](integrations/gui/project/docs/SYSTEM_INTEGRATION.md)，灯泡三类训练见 [训练记录](docs/bulb-model-training.md)。
+
+双 UNO 原始交付、整合固件与电脑 USB 网关见 [硬件入口](integrations/hardware/README.md) 和 [硬件整合说明](docs/hardware-integration.md)。整合固件已烧录两块 UNO，真实 gateway 模式与新版网页已部署；未安装硬件在真实网关模式隐藏，通用代码与原 SQL 保留。
+
+当前逐项联调见 [联调测试表](docs/联调测试表.md)，电脑网页、实体 Android APK 与硬件观察分栏记录。
+
 ## Project Scope
 
 The course requirements ask the software team to provide:
@@ -31,12 +41,18 @@ conversion if NPU acceleration is needed.
 ## Repository Layout
 
 ```text
-backend/                 FastAPI backend and hardware/vision services
-frontend/                Web GUI placeholder
-docs/                    Architecture, deployment, and model-selection notes
-tests/                   Lightweight backend tests
-data/                    Local runtime data, ignored by git
-models/                  Local model weights, ignored by git
+backend/                 FastAPI, MySQL repository, vision and Arduino adapter
+integrations/gui/project/ React/Vite Web GUI and Capacitor Android source
+integrations/database/   Team SQL and original database delivery
+integrations/face_recognition/ Original face delivery and registered photos
+integrations/hardware/   Original UNO delivery, integrated firmware and PC USB gateway
+deploy/                  Offline ARM64 deployment and service management
+scripts/                 Dataset preparation, training and model utilities
+deploy_export/weights/   Local checkpoints, exports and tracked experiment metadata
+docs/                    Architecture, deployment and training notes
+tests/                   Backend, timing, command and dataset regression tests
+data/                    Local runtime/training data, ignored by git
+models/                  Local general-model weights, ignored by git
 ```
 
 ## Quick Start
@@ -49,6 +65,9 @@ python -m backend.app
 ```
 
 The default API server runs at `http://127.0.0.1:8000`.
+Configure MySQL and the `DNB_*` environment variables first; see
+`backend/README.md`. The integrated production system uses MySQL and does not
+replace an unavailable database with simulated in-memory data.
 
 ## YOLO11n Scripts
 
@@ -65,5 +84,7 @@ OM, TensorRT, or quantized exports under `models/` as local artifacts.
 
 ## Runtime Data Policy
 
-Do not commit private face images, camera snapshots, database files, or model
-weights. Keep them under `data/` and `models/`, which are ignored by git.
+The original face delivery is retained under `integrations/` according to the
+user's explicit upload authorization. Newly captured images, feature vectors,
+database files, deployment credentials and model binaries stay in ignored local
+runtime/artifact directories or the board's private `shared/` directory.
