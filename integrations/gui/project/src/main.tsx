@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AppDataProvider } from '@/context/AppDataContext';
 import './styles.css';
+import './atlas-theme.css';
 import { restoreAdminSession } from '@/services/connection';
 
 async function start() {

@@ -38,12 +38,14 @@ export function Layout() {
   const stale = (mode === 'http' && !online) || Boolean(connectionError) || (lastSuccess > 0 && now - lastSuccess > 65000) || snapshot?.freshness === 'cached';
   const simulatedHardware = isHardwareSimulation(mode, status, snapshot);
   return <div className="app-shell">
+    <a className="skip-link" href="#main-content">跳到主要内容</a>
     <header className="topbar"><div className="topbar-inner">
       <NavLink to="/" className="brand"><span className="brand-mark"><Home size={20} /></span><span><strong>栖居</strong><small>DnB26 · 家居控制</small></span></NavLink>
+      <div className="nav-caption" aria-hidden="true"><span>我的家</span><small>YOUR EVERYDAY SPACE</small></div>
       <nav className="desktop-nav" aria-label="主导航">{navItems.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}><Icon size={16} />{label}</NavLink>)}</nav>
       <div className="sidebar-caption">控制中心</div><InstallApp /><div className="header-status"><StatusBadge tone={stale ? 'warning' : mode === 'mock' ? 'info' : status?.backend === 'online' ? 'success' : 'warning'}>{!online ? '网络已断开' : mode === 'mock' ? '演示模式' : stale ? '连接异常' : status?.backend === 'online' ? simulatedHardware ? '后端已连接 · 硬件模拟' : '设备连接模式' : '等待连接'}</StatusBadge></div>
     </div><nav className="mobile-nav" aria-label="移动端导航">{navItems.map(({ to, short, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => isActive ? 'mobile-link active' : 'mobile-link'}><Icon size={18} /><span>{short}</span></NavLink>)}</nav></header>
-    <main className="main-content">{mode === 'http' && simulatedHardware && <div className="demo-notice" role="status">硬件模拟：Arduino 尚未接入。传感器读数与控制回执为模拟数据；识别模型状态请查看系统页。</div>}{stale && <div className="error-state" role="alert">数据连接异常或已过期。以下保留上次读数，请勿视为实时状态。最后同步：{lastSuccess ? formatDateTime(new Date(lastSuccess).toISOString()) : '尚未成功'} {connectionError}</div>}<Outlet /></main>
+    <main id="main-content" className="main-content" tabIndex={-1}>{mode === 'http' && simulatedHardware && <div className="demo-notice" role="status">硬件模拟：Arduino 尚未接入。传感器读数与控制回执为模拟数据；识别模型状态请查看系统页。</div>}{stale && <div className="error-state" role="alert">数据连接异常或已过期。以下保留上次读数，请勿视为实时状态。最后同步：{lastSuccess ? formatDateTime(new Date(lastSuccess).toISOString()) : '尚未成功'} {connectionError}</div>}<Outlet /></main>
     <footer className="footer"><div><Activity size={15} /><span>GUI {guiVersion}</span><span className="footer-separator">·</span><span>后端 {status?.version || '待连接'}</span><span className="footer-separator">·</span><span>{status?.model || '模型状态待确认'}</span></div><span>DnB26 智能家居</span></footer>
   </div>;
 }
