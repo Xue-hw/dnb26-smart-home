@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+import math
 import time
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,7 @@ def _inference_rgb(image):
 
 
 class FaceSession:
-    def __init__(self, threshold=.23, closed_frames=2, timeout=12., max_gap=1.5):
+    def __init__(self, threshold=.23, closed_frames=1, timeout=15., max_gap=1.5):
         self.threshold, self.closed_frames = threshold, closed_frames
         self.timeout, self.max_gap = timeout, max_gap
         self.reset()
@@ -31,6 +32,7 @@ class FaceSession:
         self.started = self.last_seen = 0.
         self.closed = 0
         self.saw_open = False
+        self.blink_completed = False
         self.passed = False
         self.command_id = None
 
@@ -38,24 +40,43 @@ class FaceSession:
         now = time.monotonic() if now is None else now
         if not live:
             return self.result(identity, 'unavailable', False, False, '静态照片或录像只能匹配身份，不能验证现场眨眼')
-        if face_count != 1 or not identity or ear is None:
+        if face_count != 1 or ear is None or not math.isfinite(ear):
             self.reset()
             reason = '请保持画面中只有一人' if face_count > 1 else '未检测到稳定的授权人脸'
             return self.result(identity, 'pending', False, False, reason)
-        if identity != self.identity or now - self.last_seen > self.max_gap or now - self.started > self.timeout:
+        if self.identity is not None and (now < self.last_seen or now - self.last_seen > self.max_gap):
+            self.reset()
+        if self.identity is not None and now - self.started >= self.timeout:
+            self.reset()
+            return {**self.result(identity, 'timeout', False, False, '本轮活体验证已超时，请重新面对摄像头'),
+                    'verification_remaining_seconds': 0, 'identity_recheck': False}
+        if not identity and self.identity is None:
+            return self.result(None, 'pending', False, False, '未检测到稳定的授权人脸')
+        if identity is not None and identity != self.identity:
             self.reset()
             self.identity, self.started = identity, now
         self.last_seen = now
-        new_grant = False
+        # Keep the blink sequence across score dips within this bounded session.
+        # FaceService separately resets discontinuous boxes, missing or multiple faces.
         if ear >= self.threshold:
-            if self.saw_open and self.closed >= self.closed_frames and not self.passed:
-                self.passed, new_grant = True, True
+            if self.saw_open and self.closed >= self.closed_frames:
+                self.blink_completed = True
             self.saw_open, self.closed = True, 0
         elif self.saw_open:
             self.closed += 1
+        if not identity:
+            # A remembered identity or completed blink never grants on an unmatched frame.
+            return {**self.result(None, 'pending', False, False, '活体验证中'),
+                    'identity_recheck': True,
+                    'verification_remaining_seconds': math.ceil(max(0., self.timeout - (now - self.started)))}
+        new_grant = bool(self.blink_completed and ear >= self.threshold and not self.passed)
+        if new_grant:
+            self.passed = True
         result = self.result(identity, 'passed' if self.passed else 'pending', self.passed, new_grant,
-                             '当前会话已完成眨眼' if self.passed else '身份已匹配，请眨眼验证')
+                             '当前会话已完成眨眼' if self.passed else '身份已匹配，活体验证中')
         result['command_id'] = self.command_id
+        result['identity_recheck'] = False
+        result['verification_remaining_seconds'] = math.ceil(max(0., self.timeout - (now - self.started)))
         return result
 
     @staticmethod
@@ -68,6 +89,7 @@ class FaceService:
     def __init__(self, settings, repository):
         self.settings, self.repository = settings, repository
         self.session = FaceSession()
+        self.session_anchor = None
         self.lock = threading.RLock()
         # face_recognition shares native HOG/encoder objects across callers.
         self.inference_lock = threading.Lock()
@@ -102,10 +124,13 @@ class FaceService:
         with self.lock:
             self.people = valid
             self.session.reset()
+            self.session_anchor = None
+            self.last_bbox = None
 
     def reset_session(self):
         with self.lock:
             self.session.reset()
+            self.session_anchor = None
             self.last_bbox = None
 
     def remember_command(self, identity, command_id):
@@ -145,6 +170,7 @@ class FaceService:
             if not boxes:
                 if live:
                     self.session.reset()
+                    self.session_anchor = None
                 self.last_bbox = None
             for (top, right, bottom, left), encoding in zip(boxes, encodings):
                 person, distance = None, 1.
@@ -152,21 +178,38 @@ class FaceService:
                     distances = self.library.face_distance([e for _, e in self.people], encoding)
                     index = int(np.argmin(distances))
                     distance = float(distances[index])
-                    if distance < self.settings.face_tolerance:
+                    if np.isfinite(distance) and max(0., 1. - distance) >= 1. - self.settings.face_tolerance:
                         person = self.people[index][0]
                 ear = None
                 if live and len(boxes) == 1:
                     current = (left, top, right, bottom)
                     if self.last_bbox and _iou(current, self.last_bbox) < .15:
                         self.session.reset()
+                        self.session_anchor = None
                     self.last_bbox = current
+                    if self.session.identity is not None:
+                        # Use the first matched live encoding, never an updating chain.
+                        # This permits registration-score dips without transferring a
+                        # different person's blink at the same screen position.
+                        anchor_distance = (float(np.linalg.norm(encoding - self.session_anchor))
+                                           if self.session_anchor is not None else math.inf)
+                        if not math.isfinite(anchor_distance) or anchor_distance > self.settings.face_tolerance:
+                            self.session.reset()
+                            self.session_anchor = None
                     shape = self.predictor(rgb, dlib.rectangle(left, top, right, bottom))
                     points = np.array([[shape.part(i).x, shape.part(i).y] for i in range(68)])
                     ear = (_ear(points[36:42]) + _ear(points[42:48])) / 2
+                session_before = (self.session.identity, self.session.started)
                 result = self.session.observe(person['user_id'] if person else None, ear,
                                               face_count=len(boxes), live=live)
+                if live:
+                    if self.session.identity is None:
+                        self.session_anchor = None
+                    elif session_before != (self.session.identity, self.session.started):
+                        self.session_anchor = np.array(encoding, copy=True)
                 result.update(user_name=person['name'] if person else '未授权人员',
                               similarity=max(0., 1. - distance),
+                              match_threshold=1. - self.settings.face_tolerance,
                               bbox=[round(left * scale_x), round(top * scale_y),
                                     round(right * scale_x), round(bottom * scale_y)],
                               ear=ear)

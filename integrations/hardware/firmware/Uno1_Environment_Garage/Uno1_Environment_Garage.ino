@@ -125,6 +125,8 @@ volatile unsigned long lastAsrEdgeAtMs = 0;
 volatile unsigned long lastAsrEdgeAtUs = 0;
 byte lastAsrCommand = 0;
 byte lastAsrRawEdges = 0;
+volatile bool voiceEnabled = true;
+volatile bool voiceWaitingForQuiet = true;
 
 unsigned long lastLightReadAt = 0;
 unsigned long lastDhtReadAt = 0;
@@ -148,6 +150,11 @@ void printDnbState();
 const char *executeDnb(const char *op, char *args, unsigned long now);
 
 void setup() {
+  voiceEnabled = true;
+  voiceWaitingForQuiet = true;
+  asrEdgeCount = 0;
+  lastAsrEdgeAtUs = micros();
+  lastAsrEdgeAtMs = millis();
   Serial.begin(9600);
   entrancePin.begin();
 
@@ -195,6 +202,12 @@ void loop() {
 void onAsrPulse() {
   const unsigned long nowUs = micros();
 
+  if (!voiceEnabled || voiceWaitingForQuiet) {
+    lastAsrEdgeAtUs = nowUs;
+    lastAsrEdgeAtMs = millis();
+    return;
+  }
+
   if (nowUs - lastAsrEdgeAtUs < ASR_MIN_EDGE_GAP_US) {
     return;
   }
@@ -213,6 +226,12 @@ void handleAsrCommand(unsigned long now) {
 
   noInterrupts();
   now = millis();
+  if (!voiceEnabled || voiceWaitingForQuiet) {
+    asrEdgeCount = 0;
+    if (voiceEnabled && now - lastAsrEdgeAtMs >= ASR_COMMAND_GAP_MS) voiceWaitingForQuiet = false;
+    interrupts();
+    return;
+  }
   if (asrEdgeCount > 0 && now - lastAsrEdgeAtMs >= ASR_COMMAND_GAP_MS) {
     edgeCount = asrEdgeCount;
     asrEdgeCount = 0;
@@ -233,6 +252,7 @@ void handleAsrCommand(unsigned long now) {
 }
 
 void processAsrCommand(byte pulseCount, unsigned long now) {
+  if (!voiceEnabled || voiceWaitingForQuiet) return;
   lastAsrCommand = pulseCount;
   DnbLink::event(F("UNO1"), F("voice"), pulseCount);
 
@@ -930,7 +950,16 @@ void printStatus(bool forceHeader) {
 }
 
 const char *executeDnb(const char *op, char *args, unsigned long now) {
-  if (DnbLink::opcode(op, F("ENTRANCE_PIN"))) {
+  if (DnbLink::opcode(op, F("VOICE_ON")) || DnbLink::opcode(op, F("VOICE_OFF"))) {
+    if (args && *args) return "unexpected_args";
+    noInterrupts();
+    voiceEnabled = DnbLink::opcode(op, F("VOICE_ON"));
+    voiceWaitingForQuiet = true;
+    asrEdgeCount = 0;
+    lastAsrEdgeAtMs = now;
+    lastAsrEdgeAtUs = micros();
+    interrupts();
+  } else if (DnbLink::opcode(op, F("ENTRANCE_PIN"))) {
     if (!DnbPin::valid(args)) return "invalid_pin";
     if (!entrancePin.save(args)) return "pin_write_failed";
     clearKeypadBuffer();
@@ -1023,5 +1052,6 @@ void printDnbState() {
   Serial.print(F("\",\"entrance\":\"")); Serial.print(entranceIsOpen ? F("open") : F("closed"));
   Serial.print(F("\",\"state_basis\":\"actuator\",\"temperature_on\":")); Serial.print(fanOnTemperature, 1);
   Serial.print(F(",\"temperature_off\":")); Serial.print(fanOffTemperature, 1);
+  Serial.print(F(",\"voice_enabled\":")); Serial.print(voiceEnabled ? F("true") : F("false"));
   Serial.println('}');
 }

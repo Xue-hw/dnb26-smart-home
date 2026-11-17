@@ -2,7 +2,7 @@ export type DataMode = 'mock' | 'http';
 export type DataFreshness = 'live' | 'mock' | 'cached' | 'unknown';
 export type OnlineStatus = 'online' | 'offline' | 'unknown';
 export type CommandStatus = 'pending' | 'acked' | 'failed' | 'timeout';
-export type DeviceKind = 'door' | 'window' | 'light' | 'fan' | 'air_conditioner' | 'lock';
+export type DeviceKind = 'door' | 'window' | 'light' | 'fan' | 'air_conditioner' | 'lock' | 'voice';
 export type SensorMetric = 'temperature' | 'humidity' | 'smoke' | 'rain' | 'light';
 export type RecognitionType = 'object' | 'face';
 export type RecognitionSource = 'demo' | 'upload' | 'camera';
@@ -121,6 +121,7 @@ export interface DeviceCommand extends DeviceCommandInput {
 }
 
 export interface Detection {
+  model?: 'general' | 'custom' | string;
   label: string;
   label_zh: string;
   confidence: number;
@@ -153,6 +154,9 @@ export interface FaceVerifyResult {
   matched: boolean;
   identity_matched?: boolean;
   liveness_status?: 'pending' | 'passed' | 'timeout' | 'unavailable' | 'not_applicable' | 'failed';
+  identity_recheck?: boolean;
+  verification_remaining_seconds?: number;
+  match_threshold?: number;
   access_granted?: boolean;
   command_id?: string | null;
   reason?: string;
@@ -190,6 +194,18 @@ export interface PersonInput {
   user_id: string;
   name: string;
   face_image: File | null;
+}
+
+export interface PersonEnrollment {
+  user_id: string;
+  status: 'ready' | 'not_found' | 'inactive' | 'feature_missing' | 'feature_invalid' | 'model_unavailable' | 'not_loaded' | 'simulated';
+  active: boolean;
+  loaded: boolean;
+  feature_status: string;
+  feature_version: string | null;
+  model_status: string;
+  checked_at: string;
+  message: string;
 }
 
 export interface CameraSnapshot {
@@ -245,6 +261,7 @@ export interface SmartHomeDataSource {
   detectObjects(request: DetectionRequest): Promise<DetectionResult>;
   verifyFace(image: File): Promise<FaceVerifyResult>;
   getPersons(): Promise<Person[]>;
+  getPersonEnrollment(userId: string): Promise<PersonEnrollment>;
   addPerson(input: PersonInput): Promise<Person>;
   deletePerson(userId: string): Promise<void>;
   clearTemporaryImages(): Promise<{ count: number }>;
@@ -263,12 +280,23 @@ export interface LiveFace {
   user_name: string;
   identity_matched: boolean;
   liveness_status: FaceVerifyResult['liveness_status'];
+  identity_recheck?: boolean;
+  verification_remaining_seconds?: number;
+  similarity?: number;
+  match_threshold?: number;
   access_granted: boolean;
   command_id?: string | null;
   reason?: string;
   bbox?: [number, number, number, number];
 }
+export interface FaceCooldown {
+  active: boolean;
+  phase: 'idle' | 'waiting_open' | 'waiting_close' | 'unknown';
+  command_id: string | null;
+  generation?: number;
+}
 export interface LiveVision {
+  face_cooldown?: FaceCooldown;
   server_time?: string;
   frame_id: number;
   captured_at: string | null;

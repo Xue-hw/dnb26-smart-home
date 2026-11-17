@@ -10,12 +10,17 @@ async function until(f,label){for(let i=0;i<100;i++){if(f())return;await delay(2
  const code=build.outputFiles[0].text;
  const now=new Date().toISOString();
  async function start(route='/', scenario='acked'){
-  let disconnected=false, posted=false,polls=0,faceCommand='c1',lightMode='manual';let savedSettings={temperature_on:30,temperature_off:28,door_open_seconds:30,bulb_linkage:false,retention_days:7};const calls=[],errors=[],streamHandlers=new Map(),settingsReadGates=[],settingsSaveGates=[];let holdSettingsReads=false,holdSettingsSave=false;const extraState={color:'#223344',led_count:4,speed:25};const hasExtras=scenario.startsWith('dual-uno-extras');
+  let faceCooling=true;let disconnected=false, posted=false,polls=0,faceCommand='c1',lightMode='manual',voicePower=true;let savedSettings={temperature_on:30,temperature_off:28,door_open_seconds:30,bulb_linkage:false,retention_days:7};const calls=[],errors=[],streamHandlers=new Map(),settingsReadGates=[],settingsSaveGates=[];let holdSettingsReads=false,holdSettingsSave=false;const extraState={color:'#223344',led_count:4,speed:25};const hasExtras=scenario.startsWith('dual-uno-extras');
   let boardNow=scenario==='history-clock-skew'?new Date(Date.parse(now)-130*86400000).toISOString():now;
   const historyPoint=new Date(Date.parse(boardNow)-1800000).toISOString();
   const vc=new VirtualConsole();vc.on('jsdomError',e=>{if(!/canvas|Not implemented|navigation/i.test(e.message))errors.push(e.message)});
   const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'+route,runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc});
   const w=dom.window;w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.ResizeObserver=class{observe(){} disconnect(){}};
+  if(scenario==='admin-endpoint-isolation'){
+   w.localStorage.setItem('dnb26_backend_url','http://localhost');
+   w.sessionStorage.setItem('dnb26_admin_token','old-backend-only-test-token');
+   w.sessionStorage.setItem('dnb26_admin_token_backend','http://localhost');
+  }
   w.EventSource=class{addEventListener(type,callback){streamHandlers.set(type,callback)}removeEventListener(type){streamHandlers.delete(type)}close(){}};
   w.URL.createObjectURL=()=> 'blob:mock';w.URL.revokeObjectURL=()=>{};
   w.HTMLCanvasElement.prototype.getContext=function(){return new Proxy({measureText:t=>({width:String(t).length*8}),canvas:this},{get:(o,k)=>k in o?o[k]:()=>{}})};
@@ -27,6 +32,10 @@ async function until(f,label){for(let i=0;i<100;i++){if(f())return;await delay(2
    let data={};
    if(u.pathname==='/api/system/status')data={mode:'http',version:'test',backend:'online',hardware:'online',hardware_mode:scenario==='hardware-mock'?'mock':'serial',camera:'online',database:'online',model:'test',server_time:boardNow,message:''};
    if(u.pathname==='/api/dashboard/snapshot')data={freshness:scenario==='snapshot-mock'?'mock':'live',server_time:boardNow,sensors:[],devices:[device],recent_events:[]};
+   if(scenario.startsWith('voice-')){
+    if(u.pathname==='/api/system/status')data={...data,hardware_mode:'gateway',hardware_boards:{uno1:{status:scenario==='voice-offline'?'offline':'online',capabilities:['voice_control']}}};
+    if(u.pathname==='/api/dashboard/snapshot')data={...data,devices:[{device_id:'voice_control',name:'语音控制',kind:'voice',status:scenario==='voice-offline'?'offline':'online',board_id:'uno1',capabilities:['power'],state:scenario==='voice-unknown'?{}:{power:voicePower},updated_at:now}]};
+   }
    if(scenario.startsWith('dual-uno')){
     if(u.pathname==='/api/system/status')data={...data,hardware:'offline',hardware_mode:'gateway',hardware_boards:{uno1:{status:scenario.endsWith('offline')?'offline':'online',message:'环境板已连接',capabilities:['temperature','humidity','light']},uno2:{status:hasExtras?'online':'offline',message:'门禁板未连接',capabilities:['door']}}};
    if(u.pathname==='/api/dashboard/snapshot')data={...data,devices:[
@@ -37,6 +46,8 @@ async function until(f,label){for(let i=0;i<100;i++){if(f())return;await delay(2
     ]};
    }
    if(u.pathname.endsWith('/commands')){posted=true;const mock=['hardware-mock','snapshot-mock','command-source-mock'].includes(scenario);data={command_id:'cmd1',status:mock?'acked':scenario==='pending-acked'?'pending':scenario,source:mock?'mock':'serial',device_id:'light_01',requested_at:now};if(scenario==='acked'||mock)device.state.power=false;}
+   if(scenario.startsWith('voice-')&&u.pathname.endsWith('/commands')){data={command_id:'cmd1',status:scenario==='voice-pending'?'pending':scenario==='voice-failed'?'failed':'acked',source:'gateway',device_id:'voice_control'};if(data.status==='acked')voicePower=!voicePower;}
+   if(scenario==='voice-pending'&&u.pathname==='/api/commands/cmd1')return new Promise(()=>{});
    if(scenario.startsWith('dual-uno')&&u.pathname.endsWith('/commands')){data={command_id:'cmd1',status:scenario.endsWith('pending')?'pending':scenario==='dual-uno-extras-pin-fail'?'failed':'acked',device_id:'light_01',source:'serial',error_message:scenario==='dual-uno-extras-pin-fail'?'controller rejected secret 1357':undefined};if(init.body){const params=JSON.parse(init.body).params;if(params.mode==='auto')lightMode='auto';for(const key of ['color','led_count','speed'])if(key in params)extraState[key]=params[key];}}
    if(scenario.endsWith('pending')&&scenario.startsWith('dual-uno')&&u.pathname==='/api/commands/cmd1')return new Promise(()=>{});
    if(u.pathname==='/api/commands/cmd1'){polls++;data={command_id:'cmd1',status:'acked'};device.state.power=false;}
@@ -53,6 +64,14 @@ async function until(f,label){for(let i=0;i<100;i++){if(f())return;await delay(2
     const serverNow=scenario==='clock-skew'?new Date(Date.parse(now)-130*86400000).toISOString():now;
     data={server_time:scenario==='server-time-missing'?undefined:serverNow,frame_id:8,captured_at:scenario==='live-stale'?'2000-01-01T00:00:00Z':serverNow,face_captured_at:['face-stale','live-stale'].includes(scenario)?'2000-01-01T00:00:00Z':scenario==='face-missing'?null:serverNow,objects:[],faces:[{user_id:'p1',user_name:'授权测试',identity_matched:true,liveness_status:'passed',access_granted:true,command_id:['receipt-swap','live-mock-receipt'].includes(scenario)?faceCommand:null}],width:640,height:480,camera_status:'online'};
    }
+   if(u.pathname==='/api/vision/live'&&['face-waiting','face-recheck'].includes(scenario)){
+    data.faces=[{user_id:scenario==='face-recheck'?null:'p1',user_name:scenario==='face-recheck'?'未授权人员':'授权测试',identity_matched:scenario!=='face-recheck',identity_recheck:scenario==='face-recheck',liveness_status:'pending',access_granted:false,verification_remaining_seconds:15,similarity:scenario==='face-recheck'?.65:.8,match_threshold:.7}];
+   }
+   if(u.pathname==='/api/vision/live'&&scenario.startsWith('face-cooldown')){
+    data.face_cooldown={active:faceCooling,phase:faceCooling?(scenario.endsWith('unknown')?'unknown':scenario.endsWith('waiting-open')?'waiting_open':'waiting_close'):'idle',command_id:faceCooling?'c1':null,generation:faceCooling?1:2};
+    if(!faceCooling||scenario.endsWith('no-face'))data.faces=[];
+    if(scenario.endsWith('offline')){data.camera_status='offline';data.captured_at=null;data.face_captured_at=null;}
+   }
    if(u.pathname==='/api/commands/c1')data={command_id:'c1',status:'acked',source:scenario==='live-mock-receipt'?'mock':'serial'};
    if(u.pathname==='/api/commands/c2')return new Promise(()=>{});
    if(u.pathname==='/api/alerts')data={items:[{id:'a1',code:'camera_offline',severity:'warning',message:'测试摄像头离线',active:true,acknowledged:false,created_at:now}]};
@@ -68,7 +87,7 @@ async function until(f,label){for(let i=0;i<100;i++){if(f())return;await delay(2
   const button=name=>Array.from(w.document.querySelectorAll('button')).find(b=>b.textContent===name);
   await until(()=>!text().includes('正在加载页面模块')&&w.document.querySelector('h1'),'initial');
   await delay(100);
-  return {dom,w,text,button,calls,errors,holdSettingsReads:()=>holdSettingsReads=true,releaseSettingsRead:()=>settingsReadGates.shift()?.(),get waitingSettingsReads(){return settingsReadGates.length},holdSettingsSave:()=>holdSettingsSave=true,releaseSettingsSave:()=>settingsSaveGates.shift()?.(),get waitingSettingsSaves(){return settingsSaveGates.length},disconnect:()=>disconnected=true,advanceFaceCommand:()=>faceCommand='c2',advanceDeviceClock:()=>{boardNow=new Date(Date.parse(boardNow)+60000).toISOString();streamHandlers.get('system.status.changed')?.({data:JSON.stringify({type:'system.status.changed'})})},get boardNow(){return boardNow},get polls(){return polls},get posted(){return posted}};
+  return {dom,w,text,button,calls,errors,releaseFaceCooldown:()=>faceCooling=false,holdSettingsReads:()=>holdSettingsReads=true,releaseSettingsRead:()=>settingsReadGates.shift()?.(),get waitingSettingsReads(){return settingsReadGates.length},holdSettingsSave:()=>holdSettingsSave=true,releaseSettingsSave:()=>settingsSaveGates.shift()?.(),get waitingSettingsSaves(){return settingsSaveGates.length},disconnect:()=>disconnected=true,advanceFaceCommand:()=>faceCommand='c2',advanceDeviceClock:()=>{boardNow=new Date(Date.parse(boardNow)+60000).toISOString();streamHandlers.get('system.status.changed')?.({data:JSON.stringify({type:'system.status.changed'})})},get boardNow(){return boardNow},get polls(){return polls},get posted(){return posted}};
  }
  const results=[];
  for(const scenario of ['acked','failed','timeout','pending-acked']){
@@ -101,8 +120,36 @@ async function until(f,label){for(let i=0;i<100;i++){if(f())return;await delay(2
  const manual=new URLSearchParams(boardHistory.calls.filter(([p])=>p==='/api/devices/events').at(-1)[1]);assert.equal(manual.get('start'),new Date('2020-01-01T00:00').toISOString());assert.equal(manual.get('end'),new Date('2020-01-02T00:00').toISOString());
  for(const [button,hours] of [['最近1小时',1],['最近24小时',24],['最近7天',168]]){const count=boardHistory.calls.length;boardHistory.button(button).click();await until(()=>boardHistory.calls.length>count,'quick range sent '+hours);await delay(50);await until(()=>!boardHistory.button(button).disabled,'quick range completed '+hours);assertBoardRange(hours);}
  boardHistory.button('重置').click();await delay(30);boardHistory.button('查询').click();await delay(40);assertBoardRange(24);boardHistory.dom.window.close();results.push('130-day board clock drives initial reset and all quick history ranges without changing manual input');
- const p=await start('/personnel');await until(()=>p.text().includes('测试人员'),'personnel');assert(p.text().includes('待后端确认'));assert(!p.text().includes('有效（演示）'));p.button('新增授权人员').click();await delay(30);assert(p.w.document.querySelector('[role=dialog]'));p.w.document.dispatchEvent(new p.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await delay(30);assert(!p.w.document.querySelector('[role=dialog]'));results.push('personnel state and dialog Escape');p.dom.window.close();
+ const p=await start('/personnel');await until(()=>p.text().includes('测试人员'),'personnel');assert(p.text().includes('未确认'));assert(p.button('确认录入状态'));assert(!p.text().includes('有效（演示）'));p.button('新增授权人员').click();await delay(30);assert(p.w.document.querySelector('[role=dialog]'));p.w.document.dispatchEvent(new p.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await delay(30);assert(!p.w.document.querySelector('[role=dialog]'));results.push('personnel state and dialog Escape');p.dom.window.close();
  const m=await start('/monitor');assert(!m.text().includes('Mock 推理'));assert(m.text().includes('照片仅供身份核对'));assert(!m.w.document.querySelector('.verification-result').textContent.includes('验证通过，门状态以设备反馈为准'));m.button('摄像头照片').click();await until(()=>m.text().includes('保存状态：待接入保存回执'),'camera receipt');assert(!m.text().includes('后端确认已保存'));results.push('monitor real-mode, pending access and archive receipts');m.dom.window.close();
+ for(const scenario of ['face-waiting','face-recheck']){
+  const check=await start('/monitor',scenario);
+  await until(()=>check.text().includes('活体验证中'),'face waiting status');
+  assert(!check.text().includes('身份复核'));
+  assert(!check.text().includes('请眨眼'));
+  assert(!check.text().includes('剩余'));
+  assert(check.text().includes(scenario==='face-waiting'?'当前匹配分数：80.0%':'当前匹配分数：65.0%'));
+  assert(check.text().includes('门限：70.0%'));
+  assert(!check.text().includes('验证通过，门状态以设备反馈为准'));
+  assert(!check.calls.some(call=>call[0].endsWith('/commands')));
+  check.dom.window.close();results.push(scenario+' renders concise status and current score without grant or command');
+ }
+ for(const scenario of ['face-cooldown','face-cooldown-no-face','face-cooldown-offline','face-cooldown-unknown','face-cooldown-waiting-open']){
+  const cooling=await start('/monitor',scenario);
+  await until(()=>cooling.text().includes('通行冷却中'),'global face cooldown');
+  assert(cooling.text().includes(scenario.endsWith('unknown')?'开门结果待确认，等待门状态反馈':scenario.endsWith('waiting-open')?'等待入户门开门反馈':'等待入户门关闭反馈'));
+  assert(!cooling.w.document.querySelector('.live-face'),'old passed faces are hidden during cooldown');
+  assert(!cooling.text().includes('验证通过，门状态以设备反馈为准'));
+  assert(!cooling.calls.some(([p,,method])=>p.endsWith('/commands')&&method==='POST'));
+  if(scenario==='face-cooldown'){
+   cooling.disconnect();await until(()=>cooling.text().includes('连接中断，保留上次冷却状态'),'disconnect');
+   assert(cooling.text().includes('通行冷却中'),'network failure cannot clear known cooldown');
+  }else{
+   cooling.releaseFaceCooldown();await until(()=>!cooling.text().includes('通行冷却中'),'closed feedback releases cooldown');
+   assert(!cooling.w.document.querySelector('.live-face'));
+  }
+  cooling.dom.window.close();results.push(scenario+' keeps cooldown independent of faces and input, without commands');
+ }
  const live=await start('/monitor','live-valid');await until(()=>live.text().includes('验证通过，门状态以设备反馈为准'),'live pass');live.disconnect();await until(()=>live.text().includes('人脸输入异常或结果已过期，不保留通过提示'),'live disconnect clears pass');assert(!live.text().includes('验证通过，门状态以设备反馈为准'));live.dom.window.close();results.push('live verification cleared after input failure');
  const stale=await start('/monitor','live-stale');assert(!stale.text().includes('验证通过，门状态以设备反馈为准'));assert(stale.text().includes('画面不可用或已过期'));stale.dom.window.close();results.push('stale live frame cannot show access grant');
  for(const scenario of ['face-stale','face-missing']){const face=await start('/monitor',scenario);assert(face.text().includes('实时输入'));assert(!face.text().includes('验证通过，门状态以设备反馈为准'));assert(face.text().includes('人脸输入异常或结果已过期，不保留通过提示'));face.dom.window.close();results.push(scenario+' cannot show access grant with fresh object frames');}
@@ -153,6 +200,23 @@ async function until(f,label){for(let i=0;i<100;i++){if(f())return;await delay(2
  for(const scenario of ['dual-uno-extras-readonly','dual-uno-extras-offline','dual-uno-extras-pending']){const blocked=await start('/',scenario);if(scenario.endsWith('pending')){editField(blocked,'#light_01-color','#ff0000');await delay(20);blocked.button('应用颜色').click();await until(()=>blocked.posted,'extra command pending');await delay(20);}const inputs=['#light_01-color','#light_01-led-count',...(scenario.endsWith('pending')?[]:['#fan_01-speed'])];for(const id of inputs)assert(blocked.w.document.querySelector(id).disabled);if(scenario.endsWith('readonly'))for(const id of ['door_01','garage_door'])assert(blocked.w.document.querySelector(`#${id}-pin`).disabled);blocked.dom.window.close();}results.push('extended controls obey readonly board-offline and per-device pending protection');
  const pinFailure=await start('/','dual-uno-extras-pin-fail');editField(pinFailure,'#door_01-pin','1357');await delay(20);pinFailure.w.document.querySelector('#door_01-pin').closest('form').querySelector('button').click();await until(()=>pinFailure.text().includes('修改设备 PIN 失败'),'safe PIN failure');assert(!pinFailure.text().includes('1357'));assert(!pinFailure.text().includes('controller rejected secret'));pinFailure.dom.window.close();results.push('PIN controller errors cannot echo secret into GUI');
  const sys=await start('/system');await until(()=>sys.text().includes('custom-yolo'),'system models');assert(sys.text().includes('测试摄像头离线'));assert(sys.button('保存后端配置').disabled);assert.equal(sys.w.document.querySelector('#admin-token').type,'password');sys.dom.window.close();results.push('system models alerts and read-only settings');
+ const voice=await start('/','voice-acked');assert(voice.text().includes('已启用'));voice.button('语音').click();
+ voice.button('禁用语音').click();await until(()=>Boolean(voice.button('启用语音')),'voice disabled by reported state');
+ assert(voice.text().includes('已禁用'));assert.equal(voice.calls.filter(c=>c[0].endsWith('/commands')).length,1);
+ voice.button('启用语音').click();await until(()=>Boolean(voice.button('禁用语音')),'voice enabled by reported state');
+ voice.dom.window.close();results.push('voice device enables and disables through command receipt and fresh telemetry');
+ for(const scenario of ['voice-readonly','voice-offline','voice-unknown']){const v=await start('/',scenario);const control=v.w.document.querySelector('.control-actions button');assert(control.disabled);assert(!v.posted);v.dom.window.close();}
+ const failedVoice=await start('/','voice-failed');failedVoice.button('禁用语音').click();await until(()=>failedVoice.posted,'voice failed request');await delay(100);assert(failedVoice.button('禁用语音'));failedVoice.dom.window.close();results.push('voice control obeys readonly offline unknown and failed receipt protection');
+ const isolated=await start('/system','admin-endpoint-isolation');
+ assert.equal(isolated.w.document.querySelector('#admin-token').value,'old-backend-only-test-token');
+ const backendInput=isolated.w.document.querySelector('#backend-address');
+ Object.getOwnPropertyDescriptor(isolated.w.HTMLInputElement.prototype,'value').set.call(backendInput,'http://other-backend:8080');
+ backendInput.dispatchEvent(new isolated.w.Event('input',{bubbles:true}));
+ await until(()=>isolated.w.document.querySelector('#admin-token').value==='','clear old backend credential draft');
+ isolated.button('保存连接并重新加载').click();
+ await until(()=>isolated.w.localStorage.getItem('dnb26_backend_url')==='http://other-backend:8080','save new backend');
+ assert.equal(isolated.w.sessionStorage.getItem('dnb26_admin_token'),null);
+ isolated.dom.window.close();results.push('editing backend clears prefilled administrator credential before saving');
  for(const scenario of ['hardware-mock','snapshot-mock']){
   const a=await start('/',scenario);assert(a.text().includes('硬件模拟：Arduino 尚未接入'));assert(a.text().includes('可用模拟设备'));assert(!a.text().includes('报告在线的设备'));
   a.button('关灯').click();await until(()=>a.text().includes('模拟回执已确认'),'mock command acknowledged');assert(!a.text().includes('设备已确认执行'));a.dom.window.close();

@@ -28,10 +28,15 @@ function load(relative){const result=buildSync({entryPoints:[path.resolve(__dirn
  assert.equal(deviceEventActionText({action:'rfid_granted',uid:'not-an-uid'}),'刷卡通过');
  assert.equal(deviceEventActionText({action:'voice',command:3}),'本地语音 · 开灯');
  assert.equal(deviceEventActionText({action:'voice',command:7,pin:'1234'}),'本地语音');
- assert.equal(policy.faceAccessLabel({matched:true,access_granted:true,liveness_status:'passed'},'upload'),'静态照片不予通行');
- assert.equal(policy.faceAccessLabel({matched:true,access_granted:false,liveness_status:'pending'},'camera'),'等待当前人员眨眼');
+ assert.equal(policy.faceAccessLabel({matched:true,access_granted:true,liveness_status:'passed'},'upload'),'身份匹配，但静态照片没有通行资格');
+ assert.equal(policy.faceAccessLabel({matched:false,access_granted:false,liveness_status:'unavailable'},'upload'),'身份未匹配，静态照片没有通行资格');
+ assert.equal(policy.faceAccessLabel({matched:true,access_granted:false,liveness_status:'pending'},'camera'),'活体验证中');
  assert.equal(policy.faceAccessLabel({matched:false,access_granted:false,liveness_status:'passed'},'camera'),'未匹配授权人员');
  assert.equal(policy.faceAccessLabel({matched:true,access_granted:true,liveness_status:'passed'},'camera'),'验证通过，门状态以设备反馈为准');
+ assert.equal(policy.faceAccessLabel({matched:true,access_granted:false,liveness_status:'pending',verification_remaining_seconds:15},'camera'),'活体验证中');
+ assert.equal(policy.faceAccessLabel({matched:false,access_granted:true,liveness_status:'pending',identity_recheck:true,verification_remaining_seconds:20},'camera'),'活体验证中');
+ assert.equal(policy.faceAccessLabel({matched:false,access_granted:false,liveness_status:'timeout',verification_remaining_seconds:0},'camera'),'验证超时，请重新面对摄像头');
+ assert.equal(policy.faceAccessLabel({matched:true,access_granted:true,liveness_status:'passed',identity_recheck:true},'upload'),'身份匹配，但静态照片没有通行资格');
  const {captureIsFresh}=load('services/liveFreshness.ts');
  const clock='2026-07-09T12:00:00Z',recent='2026-07-09T11:59:59Z';
  assert(captureIsFresh(recent,clock,100,1100,200));

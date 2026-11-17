@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { dataMode, dataSource } from '@/services';
+import { createRefreshQueue } from '@/services/refreshQueue';
 import type { DashboardSnapshot, DeviceCommand, DeviceCommandInput, ServerClock, SmartHomeDataSource, SystemStatus } from '@/types/contracts';
 import { errorMessage } from '@/utils';
 
@@ -29,37 +30,49 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [connectionError, setConnectionError] = useState('');
   const [lastSuccess, setLastSuccess] = useState(0);
   const activeCommands = useRef(new Set<string>());
-  const refreshSequence = useRef(0);
+  const refreshQueue = useRef<ReturnType<typeof createRefreshQueue> | null>(null);
   const [pendingCommands, setPendingCommands] = useState<Record<string, boolean>>({});
 
-  const refresh = useCallback(async () => {
-    const sequence = ++refreshSequence.current;
-    try {
-      const [nextStatus, nextSnapshot] = await Promise.all([
-        dataSource.getSystemStatus(),
-        dataSource.getDashboardSnapshot(),
-      ]);
-      if (sequence !== refreshSequence.current) return;
-      setConnectionError('');
-      setLastSuccess(Date.now());
-      const serverTimestamp = Date.parse(nextStatus.server_time);
-      if (Number.isFinite(serverTimestamp)) setServerClock({ timestamp: serverTimestamp, receivedAt: performance.now(), browserOffset: serverTimestamp - Date.now() });
-      setStatus(nextStatus);
-      setSnapshot(nextSnapshot);
-    } catch (reason) {
-      if (sequence === refreshSequence.current) setConnectionError(errorMessage(reason));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const refresh = useCallback(() => refreshQueue.current?.request() ?? Promise.resolve(), []);
 
   useEffect(() => {
+    let active = true;
+    const queue = createRefreshQueue(async () => {
+      try {
+        // Wait for both reads even on failure, so the next batch cannot overlap
+        // the unfinished half of this pair. The HTTP adapter bounds each read.
+        const [nextStatus, nextSnapshot] = await Promise.allSettled([
+          dataSource.getSystemStatus(),
+          dataSource.getDashboardSnapshot(),
+        ]);
+        if (!active) return;
+        if (nextStatus.status === 'rejected') throw nextStatus.reason;
+        if (nextSnapshot.status === 'rejected') throw nextSnapshot.reason;
+        setConnectionError('');
+        setLastSuccess(Date.now());
+        const serverTimestamp = Date.parse(nextStatus.value.server_time);
+        if (Number.isFinite(serverTimestamp)) setServerClock({ timestamp: serverTimestamp, receivedAt: performance.now(), browserOffset: serverTimestamp - Date.now() });
+        setStatus(nextStatus.value);
+        setSnapshot(nextSnapshot.value);
+      } catch (reason) {
+        if (active) setConnectionError(errorMessage(reason));
+      } finally {
+        if (active) setLoading(false);
+      }
+    });
+    refreshQueue.current = queue;
     void refresh();
     const unsubscribe = dataSource.subscribeEvents((event) => {
       if (event.type !== 'recognition.created' && event.type !== 'command.updated') void refresh();
     });
     const timer = window.setInterval(() => void refresh(), 30000);
-    return () => { unsubscribe(); window.clearInterval(timer); };
+    return () => {
+      active = false;
+      unsubscribe();
+      window.clearInterval(timer);
+      queue.dispose();
+      if (refreshQueue.current === queue) refreshQueue.current = null;
+    };
   }, [refresh]);
 
   const sendCommand = useCallback(async (input: DeviceCommandInput) => {

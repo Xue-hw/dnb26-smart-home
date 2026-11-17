@@ -123,6 +123,10 @@ export class HttpDataSource implements SmartHomeDataSource {
     return request<ReturnType<SmartHomeDataSource['getPersons']> extends Promise<infer T> ? T : never>('/api/person/list');
   }
 
+  getPersonEnrollment(userId: string) {
+    return request<import('@/types/contracts').PersonEnrollment>(`/api/person/enrollment${queryString({ user_id: userId })}`);
+  }
+
   addPerson(input: PersonInput) {
     const form = new FormData();
     form.append('name', input.name);

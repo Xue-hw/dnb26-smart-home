@@ -91,7 +91,7 @@ def test_command_creation_cannot_outlive_the_capture_session(tmp_path):
     assert result['status']=='failed'
 
 
-def test_current_blink_dispatches_once_and_keeps_receipt_in_subsequent_frames(tmp_path):
+def test_current_blink_dispatches_once_and_keeps_receipt_in_cooldown(tmp_path):
     runtime,capture=live_runtime(tmp_path)
     runtime.settings.hardware_mode='mock'
     session=runtime.face.session
@@ -111,9 +111,10 @@ def test_current_blink_dispatches_once_and_keeps_receipt_in_subsequent_frames(tm
     for frame_id in range(6):
         runtime.process_faces(image,frame_id,'2026-11-16T00:00:00Z',True,**capture)
     assert len(created)==1
-    face=runtime.face_state['faces'][0]
-    assert face['access_granted']
-    assert face['command_id']=='gate-1'
+    assert runtime.face_state['faces'] == []
+    gate = runtime.face_gate.snapshot()
+    assert gate['active'] and gate['phase'] == 'waiting_close'
+    assert gate['command_id'] == 'gate-1'
 
 
 def test_disconnect_during_yolo_never_triggers_bulb_linkage(tmp_path):

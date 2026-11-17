@@ -13,11 +13,11 @@ import re
 BOARDS = ('uno1', 'uno2')
 DEVICE_BOARDS = {'front_door': 'uno1', 'main_light': 'uno1',
                  'exhaust_fan': 'uno1', 'thermometer_1': 'uno1',
-                 'garage_door': 'uno2'}
+                 'garage_door': 'uno2', 'voice_control': 'uno1'}
 CAPABILITIES = {'front_door': ['position', 'pin'], 'garage_door': ['position', 'pin'],
                 'main_light': ['power', 'brightness', 'mode', 'color', 'led_count'],
                 'exhaust_fan': ['power', 'mode', 'speed'],
-                'thermometer_1': ['temperature', 'humidity', 'light']}
+                'thermometer_1': ['temperature', 'humidity', 'light'], 'voice_control': ['power']}
 EVENTS = {'keypad_granted', 'keypad_denied', 'voice', 'rfid_granted', 'rfid_denied'}
 COMMAND_ID = re.compile(r'[0-9a-f]{32}')
 COLOR = re.compile(r'#[0-9a-fA-F]{6}')
@@ -149,11 +149,15 @@ def normalize_message(board_id, message):
     position = _choice(message.get('entrance'), ('open', 'closed'), 'entrance')
     for key in ('temperature_on', 'temperature_off'):
         _number(message.get(key), -20, 80, key)
-    return [{'type': 'telemetry', 'device_id': 'thermometer_1', 'state': sensor},
+    result = [{'type': 'telemetry', 'device_id': 'thermometer_1', 'state': sensor},
             {'type': 'telemetry', 'device_id': 'main_light', 'state': light},
             {'type': 'telemetry', 'device_id': 'exhaust_fan', 'state': fan},
             {'type': 'telemetry', 'device_id': 'front_door',
              'state': {'position': position, 'state_basis': 'actuator'}}]
+    if 'voice_enabled' in message:
+        result.append({'type': 'telemetry', 'device_id': 'voice_control',
+                       'state': {'power': _boolean(message['voice_enabled'], 'voice_enabled')}})
+    return result
 
 
 def command_to_wire(command, state):
@@ -178,6 +182,10 @@ def command_to_wire(command, state):
     allowed = set(CAPABILITIES[device_id])
     if not params or set(params) - allowed:
         raise ValueError('当前固件不支持此控制参数')
+    if device_id == 'voice_control':
+        enabled = _boolean(params.get('power'), 'power')
+        return {'command_id':command['command_id'], 'board_id':'uno1',
+                'opcode':'VOICE_ON' if enabled else 'VOICE_OFF', 'args':[]}
     special = set(params) & {'pin', 'speed', 'color', 'led_count'}
     if special:
         # Each operation is one atomic wire command. Never drop other parameters.
@@ -239,7 +247,8 @@ def encode_command(command):
         raise ValueError('无效硬件命令编号')
     if opcode not in ('DOOR_OPEN', 'DOOR_CLOSE', 'LIGHT_ON', 'LIGHT_OFF', 'BRIGHTNESS',
                        'LIGHT_AUTO', 'FAN_ON', 'FAN_OFF', 'FAN_AUTO', 'TEMP_LIMITS',
-                       'FAN_SPEED', 'LAMP_RGB', 'LAMP_COLOR', 'LAMP_COUNT', 'ENTRANCE_PIN', 'GARAGE_PIN'):
+                       'FAN_SPEED', 'LAMP_RGB', 'LAMP_COLOR', 'LAMP_COUNT', 'ENTRANCE_PIN', 'GARAGE_PIN',
+                       'VOICE_ON', 'VOICE_OFF'):
         raise ValueError('不支持的硬件操作码')
     if opcode in ('BRIGHTNESS', 'FAN_SPEED'):
         if not isinstance(args, list) or len(args) != 1:

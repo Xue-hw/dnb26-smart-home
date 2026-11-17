@@ -20,8 +20,9 @@ class GatewayBridge:
     COMMAND_TTL = 5.
     MAX_PENDING = 32
 
-    def __init__(self, runtime):
+    def __init__(self, runtime, on_dispatched=None):
         self.runtime = runtime
+        self.on_dispatched = on_dispatched
         self.lock = threading.RLock()
         self.exchange_lock = threading.Lock()
         self.session_id = None
@@ -53,7 +54,8 @@ class GatewayBridge:
                 state = board['state']
                 detail = {'status': 'online' if online else 'offline',
                           'message': 'USB控制器状态持续上报' if online else '电脑网关或UNO状态未更新',
-                          'capabilities': [device for device, owner in DEVICE_BOARDS.items() if owner == board_id]}
+                          'capabilities': [device for device, owner in DEVICE_BOARDS.items() if owner == board_id
+                                           and (device != 'voice_control' or type(state.get('voice_enabled')) is bool)]}
                 for key in ('dht_ok', 'rfid_ok', 'rfid_restricted', 'temperature_on', 'temperature_off'):
                     if key in state:
                         detail[key] = state[key]
@@ -66,7 +68,9 @@ class GatewayBridge:
             return result
 
     def device_online(self, device_id):
-        return self.board_online(DEVICE_BOARDS.get(device_id))
+        with self.lock:
+            supported = device_id != 'voice_control' or type(self.boards['uno1']['state'].get('voice_enabled')) is bool
+            return supported and self.board_online(DEVICE_BOARDS.get(device_id))
 
     def sensor_valid(self, metric):
         with self.lock:
@@ -93,6 +97,8 @@ class GatewayBridge:
             board = DEVICE_BOARDS.get(command.get('device_id'))
             if not self.session_id or not self.board_online(board):
                 raise RuntimeError('目标UNO未连接或实时状态已过期')
+            if command.get('device_id') == 'voice_control' and not self.device_online('voice_control'):
+                raise RuntimeError('当前UNO1固件未报告语音开关支持，请先完成固件升级')
             if len(self.pending) >= self.MAX_PENDING:
                 raise RuntimeError('硬件命令队列已满，请等待回执')
             state = self.states.get(command['device_id'], {})
@@ -235,10 +241,15 @@ class GatewayBridge:
             for cid, item in list(self.delivered.items()):
                 if time.monotonic()-item['delivered_at'] > 30:
                     del self.delivered[cid]
-            return {'commands': commands, 'settings': {'config_sync': True,
+            dispatches = [(c['command_id'], self.delivered[c['command_id']]['delivered_at']) for c in commands]
+            result = {'commands': commands, 'settings': {'config_sync': True,
                     'temperature_on': self.runtime.options['temperature_on'],
                     'temperature_off': self.runtime.options['temperature_off']},
                     'boards': self.details()}
+        if self.on_dispatched is not None:
+            for command_id, dispatched_at in dispatches:
+                self.on_dispatched(command_id, now=dispatched_at)
+        return result
 
     def stop(self):
         with self.lock:

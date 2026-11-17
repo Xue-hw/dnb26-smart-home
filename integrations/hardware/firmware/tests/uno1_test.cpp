@@ -18,6 +18,50 @@ const char *command(const char *opcode, const char *arguments = nullptr) {
 
 int main() {
   setup();
+  assert(voiceEnabled);
+  // A reset in the middle of six pulses must not decode the five-pulse tail as open-door.
+  for (byte edge = 0; edge < 10; ++edge) {
+    fake_millis += 50;
+    onAsrPulse();
+  }
+  fake_millis += ASR_COMMAND_GAP_MS;
+  handleAsrCommand(fake_millis);
+  assert(lastAsrCommand == 0 && !entranceIsOpen && !voiceWaitingForQuiet);
+  assert(!command("BRIGHTNESS", "70"));
+  processAsrCommand(4, fake_millis);
+  assert(!lampState && asrLampOverrideUntil == fake_millis + 5000);
+  const unsigned long existingVoiceDeadline = asrLampOverrideUntil;
+  assert(!command("VOICE_OFF") && !voiceEnabled);
+  assert(asrLampOverrideUntil == existingVoiceDeadline);
+  Serial.output.clear();
+  for (byte instruction = 1; instruction <= 6; ++instruction) processAsrCommand(instruction, fake_millis);
+  assert(!lampState && !entranceIsOpen);
+  assert(Serial.output.find("\"event\":\"voice\"") == std::string::npos);
+  fake_millis += 5001;
+  updateLightAndLamp(fake_millis);
+  assert(lampState && lampBrightnessPercent == 70 && lampMode == LAMP_MANUAL);
+  assert(!command("LIGHT_OFF") && !lampState);
+  assert(!command("VOICE_ON") && voiceEnabled);
+  fake_millis += ASR_COMMAND_GAP_MS;
+  handleAsrCommand(fake_millis);
+  processAsrCommand(3, fake_millis);
+  assert(lampState);
+  assert(command("VOICE_OFF", "extra") && voiceEnabled);
+  asrEdgeCount = 8;
+  assert(!command("VOICE_OFF") && asrEdgeCount == 0);
+  assert(!command("VOICE_ON") && asrEdgeCount == 0);
+  // A command group that began while disabled cannot resume after enabling.
+  fake_millis += ASR_COMMAND_GAP_MS - 1;
+  onAsrPulse();
+  assert(asrEdgeCount == 0 && voiceWaitingForQuiet);
+  handleAsrCommand(fake_millis);
+  assert(voiceWaitingForQuiet);
+  fake_millis += ASR_COMMAND_GAP_MS;
+  handleAsrCommand(fake_millis);
+  assert(!voiceWaitingForQuiet);
+  printDnbState();
+  assert(Serial.output.find("\"voice_enabled\":true") != std::string::npos);
+  asrLampOverrideUntil = 0;
   assert(lampCount == 8 && fanSpeedPercent == 40);
   assert(!command("FAN_SPEED", "0") && fanMode == FAN_FORCE_OFF && !fanState);
   assert(!command("FAN_ON") && fanState && fanSpeedPercent == 40 && fake_pwm == 102);

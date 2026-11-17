@@ -2,12 +2,16 @@
 import threading
 import time
 import subprocess
+import math
+import numpy as np
 from pathlib import Path
 
 
 LABELS = {'drone':'无人机','fire_extinguisher':'灭火器','bulb':'灯泡','light_bulb':'灯泡','lightbulb':'灯泡',
           'person':'人','car':'汽车','truck':'卡车','bus':'公交车','bicycle':'自行车','motorcycle':'摩托车',
           'chair':'椅子','bottle':'瓶子','cat':'猫','dog':'狗','cell phone':'手机','laptop':'笔记本电脑'}
+
+GENERAL_EXCLUDED_LABELS = frozenset({'airplane', 'drone', 'vase'})
 
 
 class ModelService:
@@ -44,6 +48,10 @@ class ModelService:
         start = time.monotonic()
         detections = []
         successful = 0
+        threshold = float(np.float32(self.settings.confidence))
+        # Upstream YOLO uses strict >. Include the configured float32 boundary,
+        # then enforce the real threshold below without changing model scores.
+        entry_threshold = max(0., float(np.nextafter(np.float32(threshold), np.float32(-np.inf))))
         with self.lock:
             for name, model in self.models:
                 state = next(s for s in self.states if s['name']==name)
@@ -52,7 +60,7 @@ class ModelService:
                         native = model.detect(image,self.settings.confidence)
                         results = None
                     else:
-                        results = model.predict(image, conf=self.settings.confidence, imgsz=self.settings.inference_size,
+                        results = model.predict(image, conf=entry_threshold, imgsz=self.settings.inference_size,
                                                 device='cpu', verbose=False)
                         native = []
                         for result in results:
@@ -65,7 +73,11 @@ class ModelService:
                     state.update(status='offline',message=f'模型推理失败: {exc}')
                     continue
                 for detection in native:
+                    if not math.isfinite(detection['confidence']) or detection['confidence'] < threshold:
+                        continue
                     label = detection['label']
+                    if name == 'general' and label.strip().casefold() in GENERAL_EXCLUDED_LABELS:
+                        continue
                     if name == 'general' and any(label in s['classes'] for s in self.states if s['name']=='custom' and s['status']=='online'):
                         continue
                     detections.append({**detection,'label_zh':LABELS.get(label,label),'model':name})

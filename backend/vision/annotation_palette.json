@@ -1,0 +1,11 @@
+{
+  "general": { "color": "#2563EB", "textColor": "#FFFFFF", "label": "通用模型", "tag": "GENERAL" },
+  "custom": { "color": "#7C3AED", "textColor": "#FFFFFF", "label": "专用模型", "tag": "CUSTOM" },
+  "face_granted": { "color": "#16A34A", "textColor": "#07111F", "label": "已授权 · 活体通过 · 已获通行资格", "tag": "AUTHORIZED / LIVE / ACCESS" },
+  "face_live": { "color": "#0891B2", "textColor": "#07111F", "label": "已授权 · 活体通过 · 未获通行资格", "tag": "AUTHORIZED / LIVE / NO ACCESS" },
+  "face_pending": { "color": "#D97706", "textColor": "#07111F", "label": "已授权 · 等待活体验证", "tag": "AUTHORIZED / WAIT LIVE" },
+  "face_failed": { "color": "#EA580C", "textColor": "#07111F", "label": "已授权 · 验证超时或验证／执行失败", "tag": "AUTHORIZED / VERIFY OR COMMAND FAILED" },
+  "face_unavailable": { "color": "#64748B", "textColor": "#FFFFFF", "label": "已授权 · 活体不可验证", "tag": "AUTHORIZED / LIVE UNAVAILABLE" },
+  "face_unauthorized": { "color": "#DC2626", "textColor": "#FFFFFF", "label": "未匹配授权人员 · 无通行资格", "tag": "UNAUTHORIZED / NO ACCESS" },
+  "unknown": { "color": "#475569", "textColor": "#FFFFFF", "label": "来源或状态未知", "tag": "UNKNOWN" }
+}

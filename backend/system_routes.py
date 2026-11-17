@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from backend.repository import RepositoryUnavailable, utcnow
 from backend.runtime import decode_image
+from backend.admin_sessions import bearer_authorized, cookie_authorized, cookie_session, create_session, delete_session
 
 
 router = APIRouter(prefix='/api')
@@ -22,8 +23,9 @@ def has_write_access(request):
     settings = request.app.state.runtime.settings
     if settings.allow_unauthenticated_writes:
         return True
-    supplied = request.headers.get('Authorization','')
-    return bool(settings.api_token) and hmac.compare_digest(supplied,'Bearer '+settings.api_token)
+    if 'authorization' in request.headers:
+        return bearer_authorized(request)
+    return cookie_authorized(request)
 
 
 def require_admin(request: Request):
@@ -65,7 +67,18 @@ async def read_image(image):
 @router.get('/auth/status')
 def auth_status(request: Request):
     return {'write_access':has_write_access(request),
+            'persistent_admin':bool(cookie_session(request)),
             'authentication_required':not request.app.state.runtime.settings.allow_unauthenticated_writes}
+
+
+@router.post('/auth/session')
+def remember_admin(request: Request):
+    return create_session(request)
+
+
+@router.delete('/auth/session')
+def forget_admin(request: Request):
+    return delete_session(request)
 
 
 @router.get('/system/status')
@@ -133,6 +146,11 @@ def people(rt=Depends(runtime)):
     return rt.repository.list_people()
 
 
+@router.get('/person/enrollment')
+def person_enrollment(user_id: str, rt=Depends(runtime)):
+    return rt.person_enrollment(user_id)
+
+
 @router.post('/person/add',dependencies=[Depends(require_admin)])
 async def add_person(name: str=Form(...),user_id: str=Form(...),face_image: UploadFile=File(...),rt=Depends(runtime)):
     raw = await face_image.read(8*1024*1024+1)
@@ -157,6 +175,10 @@ def live(rt=Depends(runtime)):
         result = {**rt.live,'faces':rt.face_state['faces'],'face_frame_id':rt.face_state['frame_id'],
             'face_captured_at':rt.face_state['captured_at'],'camera_status':rt.camera.status,
             'server_time':utcnow(),'message':rt.camera.message}
+        gate = rt.face_gate.snapshot()
+        result['face_cooldown'] = gate
+        if gate['active'] or rt.face_state.get('gate_generation', gate['generation']) != gate['generation']:
+            result['faces'] = []
         if rt.camera.status!='online':
             result.update(objects=[],detections=[],faces=[])
         return result

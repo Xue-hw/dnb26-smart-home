@@ -1,0 +1,55 @@
+const { buildSync } = require('esbuild');
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const path = require('node:path');
+const code = buildSync({ entryPoints: [path.resolve(__dirname, '../src/services/mjpeg.ts')], bundle: true, write: false, format: 'cjs' }).outputFiles[0].text;
+let fetcher;
+const mod = { exports: {} };
+vm.runInNewContext(code, { module: mod, exports: mod.exports, Uint8Array, TextEncoder, TextDecoder, fetch: (...args) => fetcher(...args) });
+const { MjpegParser, mjpegBoundary, readMjpegStream } = mod.exports;
+const enc = new TextEncoder();
+const join = (...arrays) => { const bytes = new Uint8Array(arrays.reduce((n, a) => n + a.length, 0)); let i = 0; for (const a of arrays) { bytes.set(a, i); i += a.length; } return bytes; };
+const jpeg = n => new Uint8Array([255, 216, n, 255, 217]);
+const part = bytes => join(enc.encode('--frame\r\nContent-Type: image/jpeg\r\n\r\n'), bytes, enc.encode('\r\n'));
+const end = enc.encode('--frame--\r\n');
+
+(async () => {
+  assert.equal(mjpegBoundary('multipart/x-mixed-replace; boundary=frame'), 'frame');
+  assert.equal(mjpegBoundary('Multipart/X-Mixed-Replace; boundary="frame"'), 'frame');
+  for (const type of ['image/jpeg', 'multipart/x-mixed-replace', 'multipart/x-mixed-replace; boundary=""', `multipart/x-mixed-replace; boundary=${'x'.repeat(71)}`]) assert.throws(() => mjpegBoundary(type));
+  const one = join(part(jpeg(1)), end); let last;
+  const split = new MjpegParser('frame');
+  for (const byte of one) last = split.push(new Uint8Array([byte])) || last;
+  assert.deepEqual(Array.from(last), Array.from(jpeg(1)), 'all multipart tokens may cross transport chunks');
+  const mixed = join(part(jpeg(1)), part(jpeg(2)), end);
+  assert.deepEqual(Array.from(new MjpegParser('frame').push(mixed)), Array.from(jpeg(2)), 'drop older complete frames in a batch');
+  const embedded = new Uint8Array([255, 216, 1, 255, 217, 2, 255, 217]);
+  assert.deepEqual(Array.from(new MjpegParser('frame').push(join(part(embedded), end))), Array.from(embedded), 'multipart boundary, not embedded JPEG marker, delimits the frame');
+  assert.throws(() => new MjpegParser('frame', 4).push(one), /JPEG|过大/);
+  assert.throws(() => new MjpegParser('frame', 4).push(join(enc.encode('--frame\r\nContent-Type: image/jpeg\r\n\r\n'), new Uint8Array(50))), /过大/);
+  assert.throws(() => new MjpegParser('frame').push(new Uint8Array(9000)), /边界/);
+  assert.throws(() => new MjpegParser('frame').push(join(new Uint8Array(9000), one)), /头部/);
+  assert.throws(() => new MjpegParser('frame').push(enc.encode('--frameXX')), /边界/);
+  assert.throws(() => new MjpegParser('frame').push(enc.encode('--frame\r\n'+ 'x'.repeat(9000))), /头部/);
+  assert.throws(() => new MjpegParser('frame').push(join(enc.encode('--frame\r\nContent-Type: text/html\r\n\r\n'), jpeg(1), enc.encode('\r\n'), end)), /格式/);
+  assert.throws(() => new MjpegParser('frame').push(join(part(new Uint8Array([1,2,3,4])), end)), /JPEG/);
+  const many = join(...Array.from({ length: 2000 }, (_, i) => part(jpeg(i % 255))), end);
+  assert.deepEqual(Array.from(new MjpegParser('frame').push(many)), Array.from(jpeg(1999 % 255)), 'large chunk containing many small frames remains valid');
+
+  let cancelled = 0; const ctrl = new AbortController(); let frames = 0;
+  fetcher = async (_, options) => {
+    assert.equal(options.credentials, 'omit'); assert.equal(options.signal, ctrl.signal);
+    return new Response(new ReadableStream({ start(c) { c.enqueue(one); }, cancel() { cancelled++; } }), { headers: { 'Content-Type': 'multipart/x-mixed-replace; boundary=frame' } });
+  };
+  await readMjpegStream('/stream', ctrl.signal, () => { frames++; ctrl.abort(); });
+  assert.equal(frames, 1); assert.equal(cancelled, 1, 'abort releases the stream reader');
+  fetcher = async () => new Response('unavailable', { status: 503 });
+  await assert.rejects(readMjpegStream('/stream', new AbortController().signal, () => {}), /503/);
+  fetcher = async () => new Response('html', { headers: { 'Content-Type': 'text/html' } });
+  await assert.rejects(readMjpegStream('/stream', new AbortController().signal, () => {}), /格式/);
+  fetcher = async () => new Response(null, { headers: { 'Content-Type': 'multipart/x-mixed-replace; boundary=frame' } });
+  await assert.rejects(readMjpegStream('/stream', new AbortController().signal, () => {}), /数据/);
+  fetcher = async () => new Response(one, { headers: { 'Content-Type': 'multipart/x-mixed-replace; boundary=frame' } });
+  await assert.rejects(readMjpegStream('/stream', new AbortController().signal, () => {}), /断开/);
+  console.log('PASS: bounded multipart parsing, arbitrary splits, newest-frame policy, malformed data, abort and network errors');
+})().catch(error => { console.error(error); process.exit(1); });

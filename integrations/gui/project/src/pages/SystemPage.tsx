@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Save, Server } from 'lucide-react';
 import { useAppData } from '@/context/AppDataContext';
-import { adminToken, backendBase, saveConnection } from '@/services/connection';
+import { adminToken, backendBase, clearAdminAccess, rememberAdmin, saveConnection } from '@/services/connection';
 import type { DataMode, ModelStatus, RuntimeSettings } from '@/types/contracts';
 import { errorMessage } from '@/utils';
 import { ErrorState, PageHeader, Panel, StatusBadge } from '@/components/Common';
@@ -15,6 +15,8 @@ export default function SystemPage() {
   const [base, setBase] = useState(backendBase());
   const [nextMode, setNextMode] = useState<DataMode>(mode);
   const [token, setToken] = useState(adminToken());
+  const [remember, setRemember] = useState(Boolean(rememberAdmin()));
+  const [connecting, setConnecting] = useState(false);
   const [settings, setSettings] = useState<RuntimeSettings | null>(null);
   const [savedSettings, setSavedSettings] = useState<RuntimeSettings | null>(null);
   const [models, setModels] = useState<ModelStatus[]>([]);
@@ -39,9 +41,19 @@ export default function SystemPage() {
   }, [source, refreshStatus]);
   const invalidateSettings = useCallback(() => { settingsGeneration.current += 1; }, []);
   useEffect(() => { void refresh(); return invalidateSettings; }, [refresh, invalidateSettings]);
-  function connect() {
-    try { saveConnection(base, nextMode, token); window.location.reload(); }
+  async function connect() {
+    if (connecting) return;
+    setConnecting(true); setError('');
+    try { await saveConnection(base, nextMode, token, remember); window.location.reload(); }
     catch (reason) { setError(errorMessage(reason)); }
+    finally { setConnecting(false); }
+  }
+  async function logout() {
+    if (connecting) return;
+    setConnecting(true); setError('');
+    try { await clearAdminAccess(); window.location.reload(); }
+    catch (reason) { setError(errorMessage(reason)); }
+    finally { setConnecting(false); }
   }
   async function saveSettings() {
     if (!settings || !access || savingSettings.current) return;
@@ -63,9 +75,12 @@ export default function SystemPage() {
     <PageHeader eyebrow="06 / SYSTEM" title="系统状态与连接设置" description="查看服务、模型与报警；设置网页或 APK 使用的后端地址。" actions={<button className="button secondary" disabled={saving} onClick={() => void refresh()}><RefreshCw size={15} />检查服务</button>} />
     {error && <ErrorState message={error} />}{message && <div className="result-summary" role="status">{message}</div>}
     <div className="integration-grid"><Panel title="后端连接" description="网页同源部署时地址留空。手机上的 localhost 指手机本身。">
-      <div className="form-field"><label htmlFor="backend-address">后端地址</label><input id="backend-address" value={base} placeholder="http://192.168.137.2:8080" onChange={event => setBase(event.target.value)} /></div>
+      <div className="form-field"><label htmlFor="backend-address">后端地址</label><input id="backend-address" value={base} placeholder="http://192.168.137.2:8080" onChange={event => { setBase(event.target.value); setToken(''); }} /></div>
       <div className="form-field"><label htmlFor="data-mode">数据模式</label><select id="data-mode" value={nextMode} onChange={event => setNextMode(event.target.value as DataMode)}><option value="http">真实后端 HTTP</option><option value="mock">独立演示 Mock</option></select></div>
-      <div className="form-field"><label htmlFor="admin-token">管理员令牌（可选）</label><input id="admin-token" type="password" autoComplete="off" value={token} onChange={event => setToken(event.target.value)} /></div><p className="form-help">令牌仅保存在当前会话，不写入 URL 或持久配置。跨网络连接建议使用 HTTPS/VPN。没有令牌时可查看状态，写操作按后端权限决定。</p><button className="button" onClick={connect}><Server size={15} />保存连接并重新加载</button>
+      <div className="form-field"><label htmlFor="admin-token">管理员令牌（可选）</label><input id="admin-token" type="password" autoComplete="off" value={token} onChange={event => setToken(event.target.value)} /></div>
+      <label className="check-setting"><input id="remember-admin" type="checkbox" checked={remember} disabled={connecting} onChange={event => setRemember(event.target.checked)} />记住本设备的管理员权限</label>
+      <p className="form-help">勾选后重开可恢复权限：网页使用一年有效的 HttpOnly 会话，APK 使用设备密钥加密保存。仅在本人管理的设备使用；退出可清除本设备授权。网页持久权限限同源后端；切换后端需重新授权。跨网络连接建议使用 HTTPS/VPN。</p>
+      <button className="button" disabled={connecting} onClick={() => void connect()}><Server size={15} />{connecting ? '正在处理…' : '保存连接并重新加载'}</button>{(access || token || rememberAdmin()) && <button className="button secondary" disabled={connecting} onClick={() => void logout()}>退出管理员权限</button>}
     </Panel><Panel title="服务状态" description="在线状态来自后端检查，摄像头和硬件分别展示。"><div className="service-list">{(['backend', 'database', 'camera', 'hardware'] as const).map(key => <div key={key}><strong>{{ backend: '后端', database: 'MySQL', camera: '摄像头', hardware: 'Arduino' }[key]}</strong><StatusBadge tone={key === 'hardware' && simulatedHardware ? 'warning' : status?.[key] === 'online' ? 'success' : 'warning'}>{key === 'hardware' && simulatedHardware ? '未接入 · 模拟回执' : status?.[key] === 'online' ? '在线' : status?.[key] === 'offline' ? '离线' : '未知'}</StatusBadge></div>)}</div><HardwareBoards boards={status?.hardware_boards} simulated={simulatedHardware} /><p>{status?.message}</p><p className="form-help">硬件模式：{status?.hardware_mode || '以服务端状态为准'} · 写入权限：{access ? '已授权' : '只读或未授权'}</p></Panel></div>
     <SystemAlerts />
     <div className="integration-grid"><Panel title="模型状态" description="列出自定义、通用 YOLO 和人脸模型的实际加载情况。">{models.length ? models.map(model => <article key={model.name} className="live-face"><strong>{model.name}</strong> <StatusBadge tone={['online', 'ready', 'loaded'].includes(model.status) ? 'success' : 'warning'}>{model.status}</StatusBadge><p>{model.classes?.join('、') || '无类别信息'}</p><small>{model.message}</small></article>) : <p>尚未获取模型状态</p>}</Panel>

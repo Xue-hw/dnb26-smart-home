@@ -43,6 +43,9 @@ let memoryDatabase: MockDatabase | null = null;
 const makeId = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 const iso = (time: number) => new Date(time).toISOString();
+function voiceDevice(updatedAt = new Date().toISOString()): DeviceState {
+  return { device_id: 'voice_control', name: '语音控制', kind: 'voice', state: { power: true }, status: 'online', updated_at: updatedAt };
+}
 const wait = (ms = 240) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 function sampleDetections(width = 960, height = 540): Detection[] {
@@ -102,6 +105,7 @@ function createSeedDatabase(): MockDatabase {
     { device_id: 'fan_01', name: '循环风扇', kind: 'fan', state: { power: false }, status: 'online', updated_at: iso(now - 30 * 60 * 1000) },
     { device_id: 'ac_01', name: '空调', kind: 'air_conditioner', state: { power: false, target_temperature: 26 }, status: 'online', updated_at: iso(now - 42 * 60 * 1000) },
     { device_id: 'lock_01', name: '门禁锁', kind: 'lock', state: { locked: true }, status: 'online', updated_at: iso(now - 8 * 60 * 1000) },
+    voiceDevice(iso(now)),
   ];
 
   const deviceEvents: DeviceEvent[] = devices.slice(0, 4).map((device, index) => ({
@@ -147,6 +151,7 @@ function loadDatabase(): MockDatabase {
     if (raw) {
       const parsed = JSON.parse(raw) as MockDatabase;
       if (parsed.meta?.version === DB_VERSION) {
+        if (!parsed.devices.some(device => device.device_id === 'voice_control')) parsed.devices.push(voiceDevice());
         memoryDatabase = parsed;
         return parsed;
       }
@@ -391,6 +396,14 @@ export class MockDataSource implements SmartHomeDataSource {
   async getPersons(): Promise<Person[]> {
     await wait();
     return [...loadDatabase().persons].sort((a, b) => a.user_id.localeCompare(b.user_id));
+  }
+
+  async getPersonEnrollment(userId: string): Promise<import('@/types/contracts').PersonEnrollment> {
+    await wait();
+    const person = loadDatabase().persons.find(item => item.user_id === userId);
+    return { user_id: userId, status: 'simulated', active: false, loaded: false, feature_status: 'not_enrolled',
+      feature_version: person?.feature_version ?? null, model_status: 'mock', checked_at: new Date().toISOString(),
+      message: '模拟资料已保存；演示模式没有录入真实人脸特征。' };
   }
 
   async addPerson(input: PersonInput): Promise<Person> {

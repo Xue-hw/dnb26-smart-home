@@ -47,7 +47,9 @@ def decode_predictions(prediction, names, image_shape, ratio, pad, confidence=.4
         indices,boxes = indices[valid],boxes[valid]
         if not len(indices):
             continue
-        kept = cv2.dnn.NMSBoxes(boxes.tolist(),scores[indices].tolist(),float(confidence),float(iou))
+        # OpenCV uses strict >; the >= score filter above owns the threshold.
+        nms_threshold = max(0., float(np.nextafter(np.float32(confidence), np.float32(-np.inf))))
+        kept = cv2.dnn.NMSBoxes(boxes.tolist(),scores[indices].tolist(),nms_threshold,float(iou))
         for index in np.asarray(kept,dtype=int).reshape(-1):
             source = indices[index]
             detections.append({'label':names[int(class_id)],'confidence':float(scores[source]),

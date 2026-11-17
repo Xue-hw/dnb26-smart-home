@@ -24,7 +24,9 @@ from backend.hardware.uno_protocol import CAPABILITIES, COLOR, DEVICE_BOARDS, PI
 from backend.repository import Repository, RepositoryUnavailable, public_command, utcnow
 from backend.vision.camera_service import CameraService
 from backend.vision.face_service import FaceService
+from backend.vision.face_gate import FaceGateCooldown
 from backend.vision.model_service import ModelService
+from backend.vision.annotations import PALETTE, bgr, face_annotation, object_annotation
 
 
 DEFAULT_SETTINGS = {'temperature_on':30., 'temperature_off':28., 'door_open_seconds':30,
@@ -34,7 +36,8 @@ DEVICES = {'front_door':('入口门','door',{'position':'closed'}),
     'garage_door':('车库门','door',{'position':'closed'}),
     'window_1':('窗户','window',{'position':'closed'}),
     'main_light':('主灯','light',{'power':False,'brightness':0}),
-    'exhaust_fan':('风扇','fan',{'power':False})}
+    'exhaust_fan':('风扇','fan',{'power':False}),
+    'voice_control':('语音控制','voice',{'power':True})}
 
 
 def decode_image(raw):
@@ -42,12 +45,18 @@ def decode_image(raw):
         raise ValueError('图片必须非空且不超过8 MB')
     from PIL import Image
     try:
-        with Image.open(io.BytesIO(raw)) as check:
-            if check.format not in ('JPEG','PNG','WEBP') or check.width*check.height > 20_000_000:
-                raise ValueError('仅支持 JPEG/PNG/WebP，图片最多2000万像素')
-            check.verify()
+        check = Image.open(io.BytesIO(raw))
     except Exception as exc:
         raise ValueError('无效或不支持的图片，请上传 JPEG/PNG/WebP') from exc
+    with check:
+        if check.format not in ('JPEG','PNG','WEBP'):
+            raise ValueError('实际图片编码不受支持，请转换为 JPEG/PNG/WebP；仅改扩展名无效')
+        if check.width*check.height > 20_000_000:
+            raise ValueError(f'图片尺寸 {check.width}×{check.height} 超过2000万像素上限，请缩小尺寸后上传；无需更改JPEG/PNG/WebP格式')
+        try:
+            check.verify()
+        except Exception as exc:
+            raise ValueError('图片校验失败，请重新导出有效的 JPEG/PNG/WebP 图片') from exc
     import cv2
     image = cv2.imdecode(np.frombuffer(raw,dtype=np.uint8),cv2.IMREAD_COLOR)
     if image is None:
@@ -95,9 +104,11 @@ class Runtime:
         self.events = EventBus()
         self.models = ModelService(settings)
         self.face = FaceService(settings,self.repository)
+        self.face_gate = FaceGateCooldown()
+        self._face_gate_command_check_at = 0.
         self.camera = CameraService(settings,self.process_frame,self.process_faces)
         self.serial = SerialBridge(settings,self.on_hardware_message)
-        self.gateway = GatewayBridge(self)
+        self.gateway = GatewayBridge(self, self.face_gate.dispatched)
         self.options = dict(DEFAULT_SETTINGS)
         self.errors = {}
         self.lock = threading.RLock()
@@ -106,6 +117,7 @@ class Runtime:
         self.database_online = False
         self.last_bulb = 0.
         self.bulb_count = 0
+        self.pending_bulb_effect = None
         self.last_recognition = 0.
         self.live = {'frame_id':0,'captured_at':None,'objects':[],'faces':[],
                      'width':0,'height':0,'camera_status':'offline','source':'camera','inference_ms':None}
@@ -247,6 +259,41 @@ class Runtime:
         self.face.reload()
         self.events.publish('system.status.changed')
 
+    def person_enrollment(self, user_id):
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', user_id):
+            raise ValueError('人员编号格式无效')
+        people = self.repository.list_people(include_features=True)
+        person = next((p for p in people if p['user_id'] == user_id), None)
+        result = {'user_id':user_id, 'status':'not_found', 'active':False, 'loaded':False,
+                  'feature_status':'unknown', 'feature_version':None,
+                  'model_status':self.face.status, 'checked_at':utcnow(), 'message':'未找到该人员记录'}
+        if person is None:
+            if any(p['user_id'] == user_id for p in self.repository.list_people(include_inactive=True)):
+                result.update(status='inactive', message='该人员已停用')
+            return result
+        result.update(active=True, feature_version=person.get('feature_version'))
+        feature = Path(person.get('face_feature_path') or '')
+        if not feature.is_file():
+            return {**result, 'status':'feature_missing', 'feature_status':'missing', 'message':'人员已保存，但人脸特征文件缺失'}
+        try:
+            if feature.suffix.lower() != '.npy' or feature.stat().st_size > 16384:
+                raise ValueError('Invalid feature file')
+            encoding = np.load(feature, allow_pickle=False)
+            if encoding.shape != (128,) or not np.isfinite(encoding).all():
+                raise ValueError('Invalid feature vector')
+        except Exception:
+            return {**result, 'status':'feature_invalid', 'feature_status':'invalid', 'message':'人脸特征文件无效，请重新录入'}
+        result['feature_status'] = 'valid'
+        with self.face.lock:
+            result['model_status'] = self.face.status
+            result['loaded'] = any(p['user_id'] == user_id and np.array_equal(encoding, loaded)
+                                   for p, loaded in self.face.people)
+        if result['model_status'] != 'online':
+            return {**result, 'status':'model_unavailable', 'message':'人脸特征已保存，识别服务当前不可用'}
+        if not result['loaded']:
+            return {**result, 'status':'not_loaded', 'message':'人脸特征已保存，识别服务尚未载入当前特征；请稍后重新确认'}
+        return {**result, 'status':'ready', 'message':'人脸特征有效，已载入识别服务'}
+
     def save_image(self, image, folder='captures'):
         import cv2
         target = self.settings.data_dir/folder/f'{uuid.uuid4().hex}.jpg'
@@ -297,13 +344,16 @@ class Runtime:
         if face_state['frame_id'] == frame_id:
             for face in face_state['faces']:
                 left,top,right,bottom = face['bbox']
-                color = (0,200,0) if face['access_granted'] else (0,160,255)
+                style, label = face_annotation(face)
+                color = bgr(style)
                 cv2.rectangle(frame,(left,top),(right,bottom),color,2)
-                cv2.putText(frame,'PASS' if face['access_granted'] else 'WAIT / DENY',(left,max(15,top-5)),cv2.FONT_HERSHEY_SIMPLEX,.5,color,1)
+                cv2.putText(frame,label,(left,max(15,top-5)),cv2.FONT_HERSHEY_SIMPLEX,.5,color,1)
         for obj in objects:
             left,top,right,bottom = obj['bbox']
-            cv2.rectangle(frame,(left,top),(right,bottom),(255,150,0),2)
-            cv2.putText(frame,f"{obj['label']} {obj['confidence']:.2f}",(left,max(15,top-5)),cv2.FONT_HERSHEY_SIMPLEX,.5,(255,150,0),1)
+            style = object_annotation(obj)
+            color = bgr(style)
+            cv2.rectangle(frame,(left,top),(right,bottom),color,2)
+            cv2.putText(frame,f"{PALETTE[style]['tag']} {obj['label']} {obj['confidence']:.2f}",(left,max(15,top-5)),cv2.FONT_HERSHEY_SIMPLEX,.5,color,1)
         if not live_input:
             cv2.putText(frame,'REPLAY: NO ACCESS GRANTS',(10,25),cv2.FONT_HERSHEY_SIMPLEX,.65,(0,0,255),2)
         with self.lock:
@@ -321,14 +371,82 @@ class Runtime:
         bulb = any(d['label'] in ('bulb','light_bulb','lightbulb') for d in objects)
         trusted = live_input and self.camera.is_current_capture(captured_monotonic,generation)
         self.bulb_count = self.bulb_count+1 if bulb and trusted else 0
-        if self.options['bulb_linkage'] and self.bulb_count>=3 and now-self.last_bulb>10:
-            try:
-                self.send_command('main_light','set',{'power':True,'brightness':80},source='bulb',
-                    capture=(captured_monotonic,generation))
-                self.last_bulb = now
-            except Exception as exc:
-                self.errors['bulb'] = str(exc)
+        self.advance_bulb_effect(now, (captured_monotonic, generation))
         return frame
+
+    def advance_bulb_effect(self, now, capture):
+        # Existing UNO firmware uses independent color and brightness commands.
+        # Do not queue an ON behind an unconfirmed color using an old capture.
+        with self.command_lock:
+            if not self.options['bulb_linkage'] or self.bulb_count < 3:
+                self.pending_bulb_effect = None
+                return
+            try:
+                pending = self.pending_bulb_effect
+                if pending is not None:
+                    if pending['generation'] != capture[1]:
+                        self.pending_bulb_effect = None
+                        return
+                    if now - pending['started'] >= 5:
+                        raise RuntimeError('灯泡联动等待已超过5秒，取消后续开灯')
+                    color_command = self.repository.command(pending['command_id'])
+                    if time.monotonic() - pending['started'] >= 5:
+                        raise RuntimeError('灯泡联动等待已超过5秒，取消后续开灯')
+                    if color_command['status'] == 'pending':
+                        return
+                    self.pending_bulb_effect = None
+                    if color_command['status'] != 'acked':
+                        raise RuntimeError('灯泡联动颜色未获设备确认，取消后续开灯')
+                    command = self.send_command('main_light','set',{'power':True,'brightness':80},
+                                                source='bulb',capture=capture)
+                elif now - self.last_bulb > 10:
+                    self.last_bulb = now
+                    if self.settings.hardware_mode == 'gateway':
+                        command = self.send_command('main_light','set',{'color':'#00FFFF'},
+                                                    source='bulb',capture=capture)
+                        if command['status'] not in ('failed', 'timeout'):
+                            self.pending_bulb_effect = {'command_id':command['command_id'],
+                                                       'generation':capture[1], 'started':now}
+                    else:
+                        command = self.send_command('main_light','set',{'power':True,'brightness':80},
+                                                    source='bulb',capture=capture)
+                else:
+                    return
+                if command['status'] in ('failed', 'timeout'):
+                    raise RuntimeError('灯泡联动命令失败，请检查设备回执')
+                self.errors.pop('bulb', None)
+            except Exception as exc:
+                self.pending_bulb_effect = None
+                self.errors['bulb'] = str(exc)
+
+    def _face_gate_result(self, command):
+        if self.face_gate.command_result(command['command_id'], command['status']):
+            self.face.reset_session()
+            self.face_event_key = None
+
+    def _refresh_face_gate_command(self):
+        gate = self.face_gate.snapshot()
+        now = time.monotonic()
+        if not gate['active'] or not gate['command_id'] or now < self._face_gate_command_check_at:
+            return
+        self._face_gate_command_check_at = now + .5
+        try:
+            self._face_gate_result(self.repository.command(gate['command_id']))
+            self.errors.pop('face_cooldown', None)
+        except Exception as exc:
+            self.errors['face_cooldown'] = f'通行冷却回执暂不可用: {exc}'
+
+    def _face_gate_telemetry(self, device_id, state, source, received_at):
+        if device_id != 'front_door' or source != self.settings.hardware_mode:
+            return
+        if self.face_gate.observe(state.get('position'), received_at=received_at):
+            self.face.reset_session()
+            self.face_event_key = None
+
+    def _store_face_state(self, frame_id, captured, faces, generation):
+        with self.lock:
+            self.face_state = {'frame_id':frame_id, 'captured_at':captured,
+                               'faces':faces, 'gate_generation':generation}
 
     def process_faces(self, frame, frame_id, captured, live_input, *, captured_monotonic=None, generation=None):
         if live_input and not self.camera.is_current_capture(captured_monotonic,generation):
@@ -336,8 +454,15 @@ class Runtime:
         if frame is None:
             self.face.reset_session()
             self.face_event_key = None
-            with self.lock:
-                self.face_state = {'frame_id':frame_id,'captured_at':captured,'faces':[]}
+            self._store_face_state(frame_id, captured, [], self.face_gate.generation)
+            return
+        self._refresh_face_gate_command()
+        gate = self.face_gate.snapshot()
+        gate_generation = gate['generation']
+        if gate['active']:
+            self.face.reset_session()
+            self.face_event_key = None
+            self._store_face_state(frame_id, captured, [], gate_generation)
             return
         try:
             faces = self.face.analyze(frame,live=live_input)
@@ -346,23 +471,37 @@ class Runtime:
             self.face.reset_session()
             self.errors['faces'] = str(exc)
             faces = []
-        if live_input and not self.camera.is_current_capture(captured_monotonic,generation):
+        if (live_input and not self.camera.is_current_capture(captured_monotonic,generation)
+                or gate_generation != self.face_gate.generation):
             self.face.reset_session()
             faces = []
+        suppress_passed = False
         for face in faces:
             if face.get('new_grant') and live_input:
+                token = None
                 try:
                     if not self.repository.is_authorized(face['user_id']):
                         raise ValueError('授权已被停用')
-                    # DB validation can block; re-check the capture immediately before dispatch.
+                    token = self.face_gate.reserve(gate_generation)
+                    if token is None:
+                        faces = []
+                        break
                     command = self.send_command('front_door','set',{'position':'open'},source='face',
-                        capture=(captured_monotonic,generation))
+                        capture=(captured_monotonic,generation),face_gate_token=token)
+                    # Binding again is harmless and also supports alternate command adapters.
+                    self.face_gate.bind(token, command['command_id'])
+                    self._face_gate_result(command)
                     face['command_id'] = command['command_id']
                     self.face.remember_command(face['user_id'],command['command_id'])
                     if command['status']=='failed':
-                        face['reason'] += '；控制器执行失败: '+str(command.get('error_message',''))
+                        face.update(access_granted=False,liveness_status='failed',
+                                    reason='无法提交门禁: '+str(command.get('error_message','')))
+                    else:
+                        suppress_passed = True
                     self.record_live_event(frame,[],face)
                 except Exception as exc:
+                    if token is not None:
+                        self.face_gate.cancel_unbound(token)
                     face.update(access_granted=False,liveness_status='failed',reason=f'无法提交门禁: {exc}')
                     self.face.reset_session()
         key = tuple((f.get('user_id'),f.get('liveness_status')) for f in faces)
@@ -377,8 +516,9 @@ class Runtime:
                 self.errors['face_archive'] = f'人脸事件归档失败: {exc}'
         elif not faces:
             self.face_event_key = None
-        with self.lock:
-            self.face_state = {'frame_id':frame_id,'captured_at':captured,'faces':faces}
+        if suppress_passed or self.face_gate.snapshot()['active']:
+            faces = []
+        self._store_face_state(frame_id, captured, faces, gate_generation)
 
     def record_live_event(self, image, objects, face):
         url = self.save_image(image)
@@ -390,10 +530,12 @@ class Runtime:
         event = self.repository.event('recognition',payload)
         self.events.publish('recognition.created',{'event_id':event['event_id']})
 
-    def send_command(self, device_id, action, params, key=None, source='gui', capture=None):
+    def send_command(self, device_id, action, params, key=None, source='gui', capture=None, face_gate_token=None):
         if device_id not in DEVICES:
             raise ValueError('不支持的设备编号')
         _,kind,_ = DEVICES[device_id]
+        if kind == 'voice' and self.settings.hardware_mode not in ('gateway', 'mock'):
+            raise ValueError('语音开关需要支持此功能的UNO1电脑网关固件')
         params = self.validate_command(kind,action,params,allow_mode=self.settings.hardware_mode=='gateway')
         with self.command_lock:
             payload = {'device_id':device_id,'action':action,'params':params}
@@ -406,8 +548,12 @@ class Runtime:
                            '_sensitive_fingerprint': fingerprint}
             command,created = self.repository.create_command(device_id,payload,self.settings.hardware_mode,key)
             command = public_command(command)
+            if face_gate_token is not None:
+                self.face_gate.bind(face_gate_token, command['command_id'])
             if not created:
                 return command
+            if device_id == 'main_light' and source != 'bulb':
+                self.pending_bulb_effect = None
             try:
                 if capture is not None and not self.camera.is_current_capture(*capture):
                     raise RuntimeError('摄像头会话已变化或当前图像已过期，取消硬件联动')
@@ -422,7 +568,10 @@ class Runtime:
                     else:
                         state.update(params)
                     name,_,_ = DEVICES[device_id]
+                    if device_id == 'front_door':
+                        self.face_gate.dispatched(command['command_id'])
                     self.repository.update_device(device_id,name,kind,state,'mock')
+                    self._face_gate_telemetry(device_id, state, 'mock', time.monotonic())
                     command = self.repository.finish_command(command['command_id'],'acked')
                     self.device_event(device_id,state,source,command['command_id'])
                 elif self.settings.hardware_mode=='serial':
@@ -431,6 +580,8 @@ class Runtime:
                     with self.camera.lock:
                         if capture is not None and not self.camera.is_current_capture(*capture):
                             raise RuntimeError('摄像头会话已变化或当前图像已过期，取消硬件联动')
+                        if device_id == 'front_door':
+                            self.face_gate.dispatched(command['command_id'])
                         self.serial.send(command)
                 elif self.settings.hardware_mode=='gateway':
                     self.gateway.send({**command, 'params': params},capture=capture)
@@ -439,6 +590,7 @@ class Runtime:
             except Exception as exc:
                 error = '门禁密码修改未能提交，请检查UNO连接及协议' if 'pin' in params else str(exc)
                 command = public_command(self.repository.finish_command(command['command_id'],'failed',error))
+            self._face_gate_result(command)
             self.events.publish('command.updated',command)
             return command
 
@@ -497,6 +649,7 @@ class Runtime:
                 raise ValueError('无效ack状态')
             # ACK only confirms controller execution; physical state requires separate telemetry.
             command = self.repository.finish_command(str(message.get('command_id','')),message['status'],message.get('error'))
+            self._face_gate_result(command)
             self.events.publish('command.updated',command)
             return
         self.ingest_telemetry(message,'serial')
@@ -504,11 +657,15 @@ class Runtime:
     def on_gateway_message(self, message):
         if message['type']=='ack':
             command = self.repository.finish_command(message['command_id'],message['status'],message.get('error'))
+            self._face_gate_result(command)
             self.events.publish('command.updated',command)
         elif message['type']=='local_event':
             device_id = 'front_door' if message['board_id']=='uno1' else 'garage_door'
             if message['event']=='voice':
                 device_id = {1:'exhaust_fan',2:'exhaust_fan',3:'main_light',4:'main_light'}.get(message.get('command'),'front_door')
+                if device_id == 'main_light':
+                    with self.command_lock:
+                        self.pending_bulb_effect = None
             event = self.repository.event('device',{'device_id':device_id,'device_name':DEVICES[device_id][0],
                 'action':message['event'],'state':{},'source':'gateway.'+message['board_id'],
                 'local_event':message['event'],
@@ -518,6 +675,7 @@ class Runtime:
             self.ingest_telemetry(message,'gateway')
 
     def ingest_telemetry(self, message, source='mock'):
+        received_at = time.monotonic()
         device_id = message.get('device_id')
         state = message.get('state',{})
         if device_id=='thermometer_1':
@@ -553,6 +711,7 @@ class Runtime:
         else:
             raise ValueError('未知设备编号')
         self.repository.update_device(device_id,name,kind,state,source)
+        self._face_gate_telemetry(device_id, state, source, received_at)
         self.device_event(device_id,state,source)
         self.events.publish('sensor.updated' if kind=='sensor' else 'device.state.changed')
         if kind=='sensor' and 'temperature' in state:

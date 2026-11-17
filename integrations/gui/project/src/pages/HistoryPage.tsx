@@ -133,7 +133,7 @@ function HistoryContent({ serverClock }: { serverClock: ServerClock }) {
       </Panel>
 
       <Panel title="设备状态与命令事件" description={`共 ${events?.total || 0} 条，每页最多20条`} icon={<ListFilter size={17} />}>
-        {events?.items.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>时间</th><th>设备</th><th>动作</th><th>最终状态</th><th>来源</th><th>命令 ID</th></tr></thead><tbody>{events.items.map((event) => <tr key={event.event_id}><td>{formatDateTime(event.occurred_at)}</td><td>{event.device_name}</td><td>{deviceEventActionText(event)}</td><td>{deviceStateText(event.state)}</td><td>{event.source}</td><td>{event.command_id || '—'}</td></tr>)}</tbody></table></div> : <EmptyState title="该区间没有设备事件" description="该页暂无事件；可调整时间区间或返回上一页。" />}
+        {events?.items.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>时间</th><th>设备</th><th>动作</th><th>最终状态</th><th>来源</th><th>命令 ID</th></tr></thead><tbody>{events.items.map((event) => <tr key={event.event_id}><td>{formatDateTime(event.occurred_at)}</td><td>{event.device_name}</td><td>{deviceEventActionText(event)}</td><td>{deviceStateText(event.state, event.device_id === 'voice_control' ? 'voice' : undefined)}</td><td>{event.source}</td><td>{event.command_id || '—'}</td></tr>)}</tbody></table></div> : <EmptyState title="该区间没有设备事件" description="该页暂无事件；可调整时间区间或返回上一页。" />}
       </Panel>
 
       <Panel title="历史识别记录" description="查看历史图片与识别结果。图片是否归档由后端返回结果决定。" icon={<ImageOff size={17} />} actions={<StatusBadge>{recognitions.length} 条</StatusBadge>}>

@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import math
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 
@@ -31,7 +32,7 @@ class Settings:
     camera_height: int = 480
     inference_size: int = 640
     inference_interval: float = .15
-    confidence: float = .4
+    confidence: float = .70
     hardware_mode: str = 'mock'
     serial_port: str = '/dev/ttyACM0'
     serial_baud: int = 115200
@@ -39,10 +40,17 @@ class Settings:
     api_token: str = ''
     allow_unauthenticated_writes: bool = False
     cors_origins: list[str] = field(default_factory=list)
-    face_tolerance: float = .45
+    # Distance ceiling: similarity = 1 - distance; user-approved .65 matching trial.
+    face_tolerance: float = .35
     face_enabled: bool = True
     auto_bootstrap_faces: bool = False
     bootstrap_faces_dir: Path = Path('integrations/face_recognition/photos')
+
+    def __post_init__(self):
+        for name in ('confidence', 'face_tolerance'):
+            value = getattr(self, name)
+            if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+                raise ValueError(f'{name} must be finite and between 0 and 1')
 
     @classmethod
     def from_env(cls):

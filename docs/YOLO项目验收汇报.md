@@ -257,13 +257,13 @@ python scripts\export_yolo11n_onnx.py --model deploy_export\weights\dnb26_drone_
 电脑端：
 
 ```powershell
-python scripts\detect_camera.py --camera 0 --model deploy_export\weights\dnb26_drone_fire_yolo11n_best.pt --conf 0.35 --imgsz 960 --classes drone,fire_extinguisher --width 640 --height 480
+python scripts\detect_camera.py --camera 0 --model deploy_export\weights\dnb26_drone_fire_yolo11n_best.pt --conf 0.5 --imgsz 960 --classes drone,fire_extinguisher --width 640 --height 480
 ```
 
 香橙派端：
 
 ```bash
-python scripts/detect_camera.py --camera 0 --model deploy_export/weights/dnb26_drone_fire_yolo11n_best.pt --conf 0.35 --imgsz 960 --classes drone,fire_extinguisher --width 640 --height 480
+python scripts/detect_camera.py --camera 0 --model deploy_export/weights/dnb26_drone_fire_yolo11n_best.pt --conf 0.5 --imgsz 960 --classes drone,fire_extinguisher --width 640 --height 480
 ```
 
 ### 第四步：现场运行

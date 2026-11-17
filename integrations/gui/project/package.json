@@ -1,6 +1,6 @@
 {
   "name": "dnb26-smart-home-gui",
-  "version": "2.1.0",
+  "version": "2.1.7",
   "private": true,
   "type": "module",
   "description": "DnB26 智能家居控制系统纯前端 GUI，含 Mock 数据库、接口演示与真实 HTTP 接口预留。",
@@ -10,9 +10,10 @@
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "node tests/integration.cjs && node tests/pwa.cjs && node tests/system.cjs",
+    "test": "node tests/integration.cjs && node tests/pwa.cjs && node tests/system.cjs && node tests/refresh.cjs && node tests/adminPersistence.cjs && node tests/voiceMock.cjs && npm run test:media",
     "android:sync": "npm run build && cap sync android",
-    "android:open": "cap open android"
+    "android:open": "cap open android",
+    "test:media": "node tests/mjpeg.cjs && node tests/liveVideo.cjs && node tests/liveVideoLifecycle.cjs && node tests/mediaImage.cjs && node tests/mediaImageService.cjs && node tests/imageDrop.cjs && node tests/recognitionStyles.cjs && node tests/personEnrollment.cjs"
   },
   "engines": {
     "node": ">=22.12.0"

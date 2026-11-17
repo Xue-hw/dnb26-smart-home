@@ -16,11 +16,11 @@ export function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '发生未知错误，请重试。';
 }
 
-export function deviceStateText(state: Record<string, boolean | number | string>) {
+export function deviceStateText(state: Record<string, boolean | number | string>, kind?: import('./types/contracts').DeviceKind) {
   return Object.entries(state).filter(([key]) => key !== 'pin').map(([key, value]) => {
     if (key === 'position') return value === 'open' ? '开启' : value === 'closed' ? '关闭' : value === 'moving' ? '移动中' : '未知';
     if (key === 'locked') return value ? '已上锁' : '已解锁';
-    if (key === 'power') return value ? '运行中' : '已关闭';
+    if (key === 'power') return kind === 'voice' ? value ? '已启用' : '已禁用' : value ? '运行中' : '已关闭';
     if (key === 'brightness') return `亮度 ${value}%`;
     if (key === 'color') return `颜色 ${value}`;
     if (key === 'led_count') return `灯珠 ${value}`;
@@ -58,6 +58,7 @@ export function deviceAction(device: import('./types/contracts').DeviceState) {
   if (device.kind === 'window') return device.state.position === 'open' ? '关窗' : '开窗';
   if (device.kind === 'lock') return device.state.locked ? '解锁' : '上锁';
   if (device.kind === 'light') return device.state.power ? '关灯' : '开灯';
+  if (device.kind === 'voice') return device.state.power ? '禁用语音' : '启用语音';
   return device.state.power ? '关闭' : '启动';
 }
 export function positionText(device?: import('./types/contracts').DeviceState) {
