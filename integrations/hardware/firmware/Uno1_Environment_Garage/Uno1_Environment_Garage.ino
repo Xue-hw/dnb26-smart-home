@@ -64,7 +64,8 @@ const unsigned long SERVO_HOLD_TIME_MS = 1200UL;
 const unsigned long DHT_ERROR_PRINT_INTERVAL_MS = 10000UL;
 const unsigned long SERIAL_IDLE_COMMAND_MS = 800UL;
 const unsigned long OLED_UPDATE_INTERVAL_MS = 5000UL;
-const unsigned long KEYPAD_DEBOUNCE_MS = 220UL;
+const unsigned long KEYPAD_PRESS_DEBOUNCE_MS = 20UL;
+const unsigned long KEYPAD_RELEASE_DEBOUNCE_MS = 50UL;
 const unsigned long ASR_COMMAND_GAP_MS = 300UL;
 const unsigned long ASR_MIN_EDGE_GAP_US = 30000UL;
 const unsigned long ASR_LAMP_OVERRIDE_MS = 5000UL;
@@ -137,8 +138,11 @@ unsigned long asrFanOverrideUntil = 0;
 unsigned long asrLampOverrideUntil = 0;
 unsigned long entranceOpenedAt = 0;
 unsigned long servoDetachAt = 0;
-unsigned long lastKeyAt = 0;
-char lastKey = '\0';
+char keypadActiveKey = '\0';
+char keypadCandidateKey = '\0';
+unsigned long keypadCandidateSince = 0;
+unsigned long keypadReleaseSince = 0;
+bool keypadReleaseTiming = false;
 
 void onAsrPulse();
 void handleAsrCommand(unsigned long now);
@@ -308,20 +312,48 @@ void setupKeypad() {
 }
 
 void handleKeypad(unsigned long now) {
-  char key = readKeypadKey();
+  updateKeypadState(readKeypadKey(), now);
+}
+
+void updateKeypadState(char key, unsigned long now) {
+  if (keypadActiveKey != '\0') {
+    if (key == keypadActiveKey) {
+      keypadReleaseTiming = false;
+      return;
+    }
+
+    if (!keypadReleaseTiming) {
+      keypadReleaseTiming = true;
+      keypadReleaseSince = now;
+      return;
+    }
+
+    if (now - keypadReleaseSince < KEYPAD_RELEASE_DEBOUNCE_MS) {
+      return;
+    }
+
+    keypadActiveKey = '\0';
+    keypadCandidateKey = '\0';
+    keypadReleaseTiming = false;
+  }
 
   if (key == '\0') {
-    lastKey = '\0';
+    keypadCandidateKey = '\0';
     return;
   }
 
-  if (key == lastKey && now - lastKeyAt < KEYPAD_DEBOUNCE_MS) {
+  if (key != keypadCandidateKey) {
+    keypadCandidateKey = key;
+    keypadCandidateSince = now;
     return;
   }
 
-  lastKey = key;
-  lastKeyAt = now;
-  processKeypadKey(key, now);
+  if (now - keypadCandidateSince >= KEYPAD_PRESS_DEBOUNCE_MS) {
+    keypadActiveKey = key;
+    keypadCandidateKey = '\0';
+    keypadReleaseTiming = false;
+    processKeypadKey(key, now);
+  }
 }
 
 char readKeypadKey() {
