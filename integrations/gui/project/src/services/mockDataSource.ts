@@ -43,6 +43,9 @@ let memoryDatabase: MockDatabase | null = null;
 const makeId = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 const iso = (time: number) => new Date(time).toISOString();
+function voiceDevice(updatedAt = new Date().toISOString()): DeviceState {
+  return { device_id: 'voice_control', name: '语音控制', kind: 'voice', state: { power: true }, status: 'online', updated_at: updatedAt };
+}
 const wait = (ms = 240) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 function sampleDetections(width = 960, height = 540): Detection[] {
@@ -102,6 +105,7 @@ function createSeedDatabase(): MockDatabase {
     { device_id: 'fan_01', name: '循环风扇', kind: 'fan', state: { power: false }, status: 'online', updated_at: iso(now - 30 * 60 * 1000) },
     { device_id: 'ac_01', name: '空调', kind: 'air_conditioner', state: { power: false, target_temperature: 26 }, status: 'online', updated_at: iso(now - 42 * 60 * 1000) },
     { device_id: 'lock_01', name: '门禁锁', kind: 'lock', state: { locked: true }, status: 'online', updated_at: iso(now - 8 * 60 * 1000) },
+    voiceDevice(iso(now)),
   ];
 
   const deviceEvents: DeviceEvent[] = devices.slice(0, 4).map((device, index) => ({
@@ -147,6 +151,7 @@ function loadDatabase(): MockDatabase {
     if (raw) {
       const parsed = JSON.parse(raw) as MockDatabase;
       if (parsed.meta?.version === DB_VERSION) {
+        if (!parsed.devices.some(device => device.device_id === 'voice_control')) parsed.devices.push(voiceDevice());
         memoryDatabase = parsed;
         return parsed;
       }
@@ -393,6 +398,14 @@ export class MockDataSource implements SmartHomeDataSource {
     return [...loadDatabase().persons].sort((a, b) => a.user_id.localeCompare(b.user_id));
   }
 
+  async getPersonEnrollment(userId: string): Promise<import('@/types/contracts').PersonEnrollment> {
+    await wait();
+    const person = loadDatabase().persons.find(item => item.user_id === userId);
+    return { user_id: userId, status: 'simulated', active: false, loaded: false, feature_status: 'not_enrolled',
+      feature_version: person?.feature_version ?? null, model_status: 'mock', checked_at: new Date().toISOString(),
+      message: '模拟资料已保存；演示模式没有录入真实人脸特征。' };
+  }
+
   async addPerson(input: PersonInput): Promise<Person> {
     await wait(420);
     if (!input.name.trim() || !input.user_id.trim()) throw new ApiError('姓名和人员 ID 不能为空。', 400, 'INVALID_INPUT');
@@ -429,6 +442,13 @@ export class MockDataSource implements SmartHomeDataSource {
     return { count };
   }
 
+  async getLiveVision(): Promise<import('@/types/contracts').LiveVision> { return { frame_id: 0, captured_at: null, objects: [], faces: [], width: 640, height: 480, camera_status: 'unknown', message: '演示模式没有真实摄像头与活体结果' }; }
+  async getAlerts(): Promise<{ items: import('@/types/contracts').SystemAlert[] }> { return { items: [] }; }
+  async acknowledgeAlert(_id: string) { return { id: _id, acknowledged: true }; }
+  async getModels() { return { items: [{ name: '演示模型（非推理）', status: 'mock', classes: [] as string[] }] }; }
+  async getSettings() { return { temperature_on: 30, temperature_off: 28, door_open_seconds: 30, bulb_linkage: false, retention_days: 7 }; }
+  async updateSettings(settings: Partial<import('@/types/contracts').RuntimeSettings>) { return { ...await this.getSettings(), ...settings }; }
+  async getAuthStatus() { return { write_access: true, authentication_required: false }; }
   subscribeEvents(callback: Listener): () => void {
     listeners.add(callback);
     return () => listeners.delete(callback);

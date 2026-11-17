@@ -1,0 +1,583 @@
+{
+  "created_at": "2026-11-16T05:28:00.879808+00:00",
+  "torch": "2.7.1+cu128",
+  "ultralytics": "8.4.89",
+  "cuda": "12.8",
+  "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "initial_checkpoint": "D:\\Codework\\dnb26-smart-home\\deploy_export\\weights\\dnb26_drone_fire_yolo11n_best.pt",
+  "initial_sha256": "acc1367a93129974834d84f7d16071b020f39be8a416cb8a6aa11112aa0a6463",
+  "names": {
+    "0": "drone",
+    "1": "fire_extinguisher",
+    "2": "light_bulb"
+  },
+  "data_yaml": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\data.yaml",
+  "dataset_manifest_sha256": "d2ae78da6670a0973e0ff6c02cff1f7df51ae63d403382875af76ae3f390416a",
+  "config": {
+    "data": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\data.yaml",
+    "initial": "D:\\Codework\\dnb26-smart-home\\deploy_export\\weights\\dnb26_drone_fire_yolo11n_best.pt",
+    "epochs": 30,
+    "imgsz": 640,
+    "batch": 8,
+    "workers": 4,
+    "device": "0",
+    "name": "dnb26_drone_fire_bulb_yolo11n_v1",
+    "skip_baseline": false,
+    "skip_export": false
+  },
+  "limitations": [
+    "Prototype training; independent hardware-camera evaluation is still required",
+    "Exact/perceptual duplicate checks do not prove source-scene independence",
+    "Held-out test currently measures the new bulb class; existing classes use their prior validation split"
+  ],
+  "baseline_old_classes": {
+    "overall": {
+      "metrics/precision(B)": 0.8579957720473843,
+      "metrics/recall(B)": 0.7854661093007965,
+      "metrics/mAP50(B)": 0.8396513286440638,
+      "metrics/mAP50-95(B)": 0.488494368541593,
+      "fitness": 0.488494368541593
+    },
+    "per_class": {
+      "0": {
+        "name": "drone",
+        "precision": 0.8623506520613077,
+        "recall": 0.728440366972477,
+        "mAP50": 0.8078311047049258,
+        "mAP50_95": 0.389716923386676
+      },
+      "1": {
+        "name": "fire_extinguisher",
+        "precision": 0.8536408920334608,
+        "recall": 0.842491851629116,
+        "mAP50": 0.8714715525832017,
+        "mAP50_95": 0.5872718136965099
+      }
+    },
+    "speed_ms": {
+      "preprocess": 0.883659044860282,
+      "inference": 2.5054267727982693,
+      "loss": 0.0006088277255286033,
+      "postprocess": 0.7054704776063747
+    }
+  },
+  "resume_events": [
+    {
+      "at": "2026-11-16T05:39:06.068874+00:00",
+      "checkpoint": "runs\\detect\\dnb26_drone_fire_bulb_yolo11n_v1\\weights\\last.pt",
+      "checkpoint_sha256": "7e48e9f0b7aff8cce05bff81096001d224af15c95236532ced1ad80fc690195e",
+      "workers": 0,
+      "batch": 8,
+      "reason": "windows_dataloader_memory_exhaustion"
+    }
+  ],
+  "validation": {
+    "overall": {
+      "metrics/precision(B)": 0.8067670549096935,
+      "metrics/recall(B)": 0.7064247549069913,
+      "metrics/mAP50(B)": 0.7517854662290335,
+      "metrics/mAP50-95(B)": 0.4368258331303157,
+      "fitness": 0.4368258331303157
+    },
+    "per_class": {
+      "0": {
+        "name": "drone",
+        "precision": 0.9130166336770158,
+        "recall": 0.7559633027522936,
+        "mAP50": 0.8355878692848789,
+        "mAP50_95": 0.4034231232581019
+      },
+      "1": {
+        "name": "fire_extinguisher",
+        "precision": 0.8761000747154599,
+        "recall": 0.8666666666666667,
+        "mAP50": 0.8989821649303913,
+        "mAP50_95": 0.6243484055608276
+      },
+      "2": {
+        "name": "light_bulb",
+        "precision": 0.6311844563366046,
+        "recall": 0.4966442953020134,
+        "mAP50": 0.5207863644718301,
+        "mAP50_95": 0.2827059705720175
+      }
+    },
+    "speed_ms": {
+      "preprocess": 0.2779445652006119,
+      "inference": 3.4462316576517207,
+      "loss": 0.00048410327943439245,
+      "postprocess": 0.763956521683687
+    }
+  },
+  "held_out_bulb_test": {
+    "overall": {
+      "metrics/precision(B)": 0.6665364501071616,
+      "metrics/recall(B)": 0.5294117647058824,
+      "metrics/mAP50(B)": 0.5726812991430392,
+      "metrics/mAP50-95(B)": 0.30071061115012854,
+      "fitness": 0.30071061115012854
+    },
+    "per_class": {
+      "2": {
+        "name": "light_bulb",
+        "precision": 0.6665364501071616,
+        "recall": 0.5294117647058824,
+        "mAP50": 0.5726812991430392,
+        "mAP50_95": 0.30071061115012854
+      }
+    },
+    "speed_ms": {
+      "preprocess": 0.3752363634041765,
+      "inference": 6.435278787676273,
+      "loss": 0.0014121211610141804,
+      "postprocess": 0.7280696970128426
+    }
+  },
+  "checkpoint": {
+    "path": "D:\\Codework\\dnb26-smart-home\\deploy_export\\weights\\dnb26_drone_fire_bulb_yolo11n_best.pt",
+    "sha256": "2e9c68ed57e4f2f3fe56f7dd78a16c0b7b8795d7776dc357fdbb1d2f4a9f32a2",
+    "bytes": 5451994
+  },
+  "onnx": {
+    "path": "D:\\Codework\\dnb26-smart-home\\deploy_export\\weights\\dnb26_drone_fire_bulb_yolo11n_best.onnx",
+    "sha256": "387debc31022f7a32001563e30beb8f02ee52d47949941e7710595439eef2c5a",
+    "bytes": 10566326
+  },
+  "onnx_validation": {
+    "graph_valid": true,
+    "input_name": "images",
+    "input_dtype": "tensor(float)",
+    "input_shape": [
+      1,
+      3,
+      640,
+      640
+    ],
+    "output_shape": [
+      1,
+      7,
+      8400
+    ],
+    "output_dtype": "float32",
+    "max_abs_error": 0.0005340576171875,
+    "provider": "CPUExecutionProvider",
+    "rtol": 0.001,
+    "atol": 0.001
+  },
+  "training": {
+    "completed_epochs": 30,
+    "last_epoch": 30,
+    "best_epoch_by_validation_map50_95": 30,
+    "best_validation_map50_95": 0.43749,
+    "results_csv": "D:\\Codework\\dnb26-smart-home\\runs\\detect\\dnb26_drone_fire_bulb_yolo11n_v1\\results.csv"
+  },
+  "dataset_overlap_audit": {
+    "path": "D:\\Codework\\dnb26-smart-home\\deploy_export\\weights\\dnb26_drone_fire_bulb_dataset_audit.json",
+    "sha256": "6ac55ef465edb3a6a480e6bcbfe34b6e0c74480e0bf994a0054eb8441d270176",
+    "results": {
+      "method": "Decoded RGB SHA256 including dimensions; 64-bit grayscale dHash at 9x8, distance <=4",
+      "candidate_training_vs_original_validation": {
+        "training_images": 3963,
+        "validation_images": 691,
+        "exact_pixel_pair_count": 0,
+        "exact_pixel_pairs": [],
+        "dhash_threshold": 4,
+        "dhash_pair_count": 16,
+        "validation_images_with_dhash_neighbor": 10,
+        "training_images_with_dhash_neighbor": 14,
+        "dhash_pair_examples_first_100": [
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000044.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_002607.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000077.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_002570.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000409.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_000130.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000463.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_001706.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000463.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_001831.jpg",
+            "dhash_distance": 3,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000463.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_002710.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000463.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_002961.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_bjq_0029.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_001556.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_bjq_0029.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_001706.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_bjq_0029.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_002961.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_bjq_0029.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\fire_train_plt_0098.jpg",
+            "dhash_distance": 3,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_plt_0077.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\fire_train_plt_0068.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_plt_0080.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_002109.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_xfs_0108.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\fire_train_xfs_0051.jpg",
+            "dhash_distance": 3,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_zm_0065.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\fire_train_zm_0078.jpg",
+            "dhash_distance": 1,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_zsp_0039.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_001677.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          }
+        ]
+      },
+      "original_training_vs_original_validation": {
+        "training_images": 3762,
+        "validation_images": 691,
+        "exact_pixel_pair_count": 4,
+        "exact_pixel_pairs": [
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_cgq_0011.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_cgq_0027.jpg"
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_cgq_0014.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_cgq_0054.jpg"
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_cgq_0063.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_cgq_0086.jpg"
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_plt_0058.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_cgq_0039.jpg"
+          }
+        ],
+        "dhash_threshold": 4,
+        "dhash_pair_count": 20,
+        "validation_images_with_dhash_neighbor": 14,
+        "training_images_with_dhash_neighbor": 18,
+        "dhash_pair_examples_first_100": [
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000044.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_002607.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000077.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_002570.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000409.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_000130.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000463.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_001706.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000463.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_001831.jpg",
+            "dhash_distance": 3,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000463.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_002710.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\drone_val_000463.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_002961.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_bjq_0029.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_001556.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_bjq_0029.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_001706.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_bjq_0029.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_002961.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_bjq_0029.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_plt_0098.jpg",
+            "dhash_distance": 3,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_cgq_0011.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_cgq_0027.jpg",
+            "dhash_distance": 0,
+            "exact_pixels": true
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_cgq_0014.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_cgq_0054.jpg",
+            "dhash_distance": 0,
+            "exact_pixels": true
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_cgq_0063.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_cgq_0086.jpg",
+            "dhash_distance": 0,
+            "exact_pixels": true
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_plt_0058.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_cgq_0039.jpg",
+            "dhash_distance": 0,
+            "exact_pixels": true
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_plt_0077.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_plt_0068.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_plt_0080.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_002109.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_xfs_0108.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_xfs_0051.jpg",
+            "dhash_distance": 3,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_zm_0065.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\fire_train_zm_0078.jpg",
+            "dhash_distance": 1,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\val\\fire_val_zsp_0039.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_extinguisher\\images\\train\\drone_train_001677.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          }
+        ]
+      },
+      "limitations": [
+        "A dHash neighbor is a visual similarity flag, not proof of source identity or leakage",
+        "No scene-ID or video-sequence grouping is available for every old-class image",
+        "Candidate starts from old weights; removing training duplicates does not undo prior weight exposure",
+        "The same old validation split supports a paired comparison, not an independent old-class holdout"
+      ],
+      "candidate_training_vs_bulb_holdout": {
+        "training_images": 3963,
+        "validation_images": 33,
+        "exact_pixel_pair_count": 0,
+        "exact_pixel_pairs": [],
+        "dhash_threshold": 4,
+        "dhash_pair_count": 1,
+        "validation_images_with_dhash_neighbor": 1,
+        "training_images_with_dhash_neighbor": 1,
+        "dhash_pair_examples_first_100": [
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\test\\oi_bulb_14880ac858b1ea88.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_000825.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          }
+        ]
+      },
+      "candidate_training_vs_bulb_validation": {
+        "training_images": 3963,
+        "validation_images": 46,
+        "exact_pixel_pair_count": 0,
+        "exact_pixel_pairs": [],
+        "dhash_threshold": 4,
+        "dhash_pair_count": 3,
+        "validation_images_with_dhash_neighbor": 1,
+        "training_images_with_dhash_neighbor": 3,
+        "dhash_pair_examples_first_100": [
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\val\\oi_bulb_a44034cae8cf3ffd.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_001570.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\val\\oi_bulb_a44034cae8cf3ffd.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_001946.jpg",
+            "dhash_distance": 4,
+            "exact_pixels": false
+          },
+          {
+            "validation": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\val\\oi_bulb_a44034cae8cf3ffd.jpg",
+            "training": "D:\\Codework\\dnb26-smart-home\\data\\datasets\\drone_fire_bulb_v2\\images\\train\\drone_train_002395.jpg",
+            "dhash_distance": 2,
+            "exact_pixels": false
+          }
+        ]
+      },
+      "bulb_split_flag_visual_review": {
+        "reviewed_pair_count": 4,
+        "test_pairs": 1,
+        "validation_pairs": 3,
+        "finding": "All four dHash flags pair bulb photographs with desert drone images; the displayed scenes are visibly distinct. No bulb-to-bulb cross-split neighbor was found at distance <=4.",
+        "contact_sheet": "D:\\CodexData\\scratch\\dnb26-bulb-training\\dhash-cross-category-flags.jpg",
+        "scope": "Manual visual check of the four flagged pairs only; not proof of all source-scene independence."
+      }
+    }
+  },
+  "candidate_original_validation": {
+    "overall": {
+      "metrics/precision(B)": 0.9021254569905713,
+      "metrics/recall(B)": 0.805144457894656,
+      "metrics/mAP50(B)": 0.8679784671683807,
+      "metrics/mAP50-95(B)": 0.5139425330368518,
+      "fitness": 0.5139425330368518
+    },
+    "per_class": {
+      "0": {
+        "name": "drone",
+        "precision": 0.9189066344582986,
+        "recall": 0.7522935779816514,
+        "mAP50": 0.8368469582326983,
+        "mAP50_95": 0.40410415496848645
+      },
+      "1": {
+        "name": "fire_extinguisher",
+        "precision": 0.8853442795228441,
+        "recall": 0.8579953378076608,
+        "mAP50": 0.8991099761040631,
+        "mAP50_95": 0.6237809111052173
+      }
+    },
+    "speed_ms": {
+      "preprocess": 0.2171706223088605,
+      "inference": 2.3002502171071844,
+      "loss": 0.00046657024499961595,
+      "postprocess": 0.5770347322737117
+    }
+  },
+  "same_split_comparison": {
+    "split": "original_drone_fire_extinguisher_validation",
+    "per_class": {
+      "0": {
+        "name": "drone",
+        "precision": {
+          "baseline": 0.8623506520613077,
+          "candidate": 0.9189066344582986,
+          "delta": 0.05655598239699089
+        },
+        "recall": {
+          "baseline": 0.728440366972477,
+          "candidate": 0.7522935779816514,
+          "delta": 0.02385321100917437
+        },
+        "mAP50": {
+          "baseline": 0.8078311047049258,
+          "candidate": 0.8368469582326983,
+          "delta": 0.029015853527772473
+        },
+        "mAP50_95": {
+          "baseline": 0.389716923386676,
+          "candidate": 0.40410415496848645,
+          "delta": 0.014387231581810433
+        }
+      },
+      "1": {
+        "name": "fire_extinguisher",
+        "precision": {
+          "baseline": 0.8536408920334608,
+          "candidate": 0.8853442795228441,
+          "delta": 0.03170338748938328
+        },
+        "recall": {
+          "baseline": 0.842491851629116,
+          "candidate": 0.8579953378076608,
+          "delta": 0.0155034861785448
+        },
+        "mAP50": {
+          "baseline": 0.8714715525832017,
+          "candidate": 0.8991099761040631,
+          "delta": 0.02763842352086132
+        },
+        "mAP50_95": {
+          "baseline": 0.5872718136965099,
+          "candidate": 0.6237809111052173,
+          "delta": 0.036509097408707336
+        }
+      }
+    }
+  },
+  "completed_at": "2026-11-16T06:30:19.298484+00:00"
+}

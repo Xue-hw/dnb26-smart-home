@@ -1,0 +1,55 @@
+const { build } = require('esbuild');
+const { JSDOM } = require('jsdom');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const tick = () => new Promise(resolve => setTimeout(resolve, 15));
+(async () => {
+  const bundle = await build({ stdin: { contents: `import {createRoot} from 'react-dom/client';
+    import {DetectionCanvas} from './src/components/DetectionCanvas';
+    import {faceStyle,recognitionPalette as palette} from './src/services/recognitionStyles';
+    window.__faceStyle=faceStyle; window.__palette=palette;
+    const root=createRoot(document.getElementById('root'));
+    const objects=[{label:'person',label_zh:'人',confidence:.8,bbox:[1,2,8,9],model:'general'},
+      {label:'drone',label_zh:'无人机',confidence:.9,bbox:[2,3,9,10],model:'custom'}];
+    window.__render=(reverse=false)=>root.render(<DetectionCanvas imageUrl="blob:test" detections={reverse?[...objects].reverse():objects} />);
+    window.__renderFace=()=>root.render(<DetectionCanvas imageUrl="blob:test" detections={[]} faces={[{bbox:[620,2,639,100],identity_matched:true,liveness_status:'passed',access_granted:true}]} />);
+    window.__unmount=()=>root.unmount(); window.__render();`, resolveDir: root, loader: 'tsx' },
+    bundle: true, write: false, format: 'iife', tsconfig: path.join(root, 'tsconfig.json') });
+  const dom = new JSDOM('<div id="root"></div>', { url:'https://localhost', runScripts:'outside-only' });
+  const w=dom.window, strokes=[], labels=[], backgrounds=[];
+  const context={clearRect(){},drawImage(){},measureText(text){return {width:text.length*14};},fillRect(x,y,width,height){backgrounds.push({x,y,width,height});},
+    strokeRect(){strokes.push(this.strokeStyle);},fillText(text){labels.push(text);}};
+  w.HTMLCanvasElement.prototype.getContext=()=>context;
+  w.Image=class {get naturalWidth(){return w.__width||640;}naturalHeight=480;set src(value){if(value)queueMicrotask(()=>this.onload?.());}};
+  w.eval(bundle.outputFiles[0].text);
+  for(let i=0;i<50 && strokes.length<2;i++)await tick();
+  assert.deepEqual(strokes, ['#2563EB','#7C3AED'], 'source, not detection order, determines box color');
+  assert.ok(labels.some(label=>label.includes('通用')));
+  assert.ok(labels.some(label=>label.includes('专用')));
+  strokes.length=0; w.__render(true);
+  for(let i=0;i<50 && strokes.length<2;i++)await tick();
+  assert.deepEqual(strokes, ['#7C3AED','#2563EB']);
+  const p=w.__palette, style=w.__faceStyle;
+  const state=(identity_matched,liveness_status,access_granted)=>({identity_matched,liveness_status,access_granted});
+  assert.equal(style(state(true,'passed',true)).color,p.face_granted.color);
+  assert.equal(style(state(true,'passed',false)).color,p.face_live.color);
+  assert.equal(style(state(true,'pending',true)).color,p.face_pending.color);
+  assert.equal(style(state(false,'passed',true)).color,p.face_unauthorized.color);
+  assert.equal(style(state(undefined,undefined,true)).color,p.unknown.color);
+  for(const status of ['failed','timeout'])assert.equal(style(state(true,status,false)).color,p.face_failed.color);
+  for(const status of ['unavailable','not_applicable'])assert.equal(style(state(true,status,false)).color,p.face_unavailable.color);
+  assert.equal(style(state(true,'passed',true),'upload').color,p.face_unavailable.color,'static upload cannot show live access');
+  strokes.length=0;labels.length=0;w.__renderFace();
+  for(let i=0;i<50 && strokes.length<1;i++)await tick();
+  assert.deepEqual(strokes,[p.face_unavailable.color]);
+  assert.ok(labels[0].includes('活体不可验证'));
+  assert.ok(backgrounds.every(r=>r.x>=0 && r.x+r.width<=640),'long labels must stay inside canvas width');
+  backgrounds.length=0;labels.length=0;strokes.length=0;w.__width=96;w.__renderFace();
+  for(let i=0;i<50 && strokes.length<1;i++)await tick();
+  assert.ok(labels.length>1,'long face label must wrap on a narrow image');
+  assert.ok(labels.join('').includes('活体不可验证'));
+  assert.ok(backgrounds.every(r=>r.x>=0 && r.x+r.width<=96));
+  w.__unmount();dom.window.close();
+  console.log('PASS: photo boxes have stable source colors and text labels across reordering');
+})().catch(error=>{console.error(error);process.exit(1);});

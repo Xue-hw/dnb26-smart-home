@@ -1,0 +1,4 @@
+# Optional native dependencies for the deployed face recognition service.
+face-recognition>=1.3.0
+dlib>=19.24
+scipy>=1.13

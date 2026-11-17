@@ -1,0 +1,11 @@
+{
+  "names": [
+    "drone",
+    "fire_extinguisher",
+    "light_bulb"
+  ],
+  "input_size": 640,
+  "source_onnx_sha256": "387debc31022f7a32001563e30beb8f02ee52d47949941e7710595439eef2c5a",
+  "soc_version": "Ascend310B4",
+  "precision": "allow_fp32_to_fp16"
+}
